@@ -64,6 +64,11 @@
 
 > Example: 10.0.0.0/24 = 256 - 5 = **251 usable IPs**
 
+#### Exam-Focused Scenario
+- **Scenario:** You need to host a public-facing website in a public subnet and backend processing in a private subnet. What CIDR ranges would you assign to achieve this separation effectively?
+  - Assign **10.0.1.0/24** to the public subnet for web servers.
+  - Assign **10.0.2.0/24** for private subnet backend processing.
+
 ---
 
 ## Internet Gateway (IGW)
@@ -71,6 +76,9 @@
 - **One IGW per VPC** (1:1 relationship)
 - Horizontally scaled, redundant, highly available
 - Must also: Assign public IP + route table entry to IGW
+
+#### Exam Tip:
+"How do public EC2 instances access the internet?" Assign a public IP and route via the IGW.
 
 ## NAT Gateway
 - Enables **private subnet** instances to reach the internet (outbound)
@@ -112,20 +120,10 @@ AZ-b: NAT-GW-b in public subnet → route table for private-b
 | Default | Deny all inbound, Allow all outbound | Allow all in/out (default NACL) |
 | Association | Multiple SGs per instance | One NACL per subnet |
 
-### NACL Rule Evaluation
-```
-Rule 100: ALLOW TCP 443 from 0.0.0.0/0    ← Evaluated first
-Rule 200: DENY TCP 443 from 10.0.0.5/32   ← Never reached for 443!
-Rule *:   DENY ALL                          ← Default deny
-
-ORDER MATTERS! Lower number = higher priority
-```
-
-### When to Use Each
-- **Security Groups**: Primary firewall for instances (most questions)
-- **NACLs**: Block specific IPs, add subnet-level defense, explicit DENY needed
-
-> **Exam Tip**: "Block a specific IP address" = NACL (only option with DENY rules). Security groups cannot deny.
+### Exam Scenario: Troubleshooting
+- **Scenario:** Your EC2 instances can't communicate with an RDS database, even though they are in the same VPC.
+  - Check Security Groups: Ensure the app SG allows inbound traffic on port 3306 from your EC2 SG.
+  - Verify NACL Rules: Ensure subnet-level NACLs do not block traffic explicitly.
 
 ---
 
@@ -136,91 +134,15 @@ ORDER MATTERS! Lower number = higher priority
 - Works **cross-account** and **cross-region**
 - Uses AWS backbone (not internet)
 
-### Rules
-- **No transitive peering**: A↔B and B↔C does NOT mean A↔C
-- **No overlapping CIDR** ranges
-- Must update **route tables** in both VPCs
-- Must update **security groups** to allow traffic
-- One peering connection per VPC pair (can't have duplicate)
-
-```
-VPC-A (10.0.0.0/16) ←Peering→ VPC-B (172.16.0.0/16)
-VPC-B ←Peering→ VPC-C (192.168.0.0/16)
-VPC-A CANNOT talk to VPC-C (no transitive peering!)
-→ Need: Transit Gateway or direct peering A↔C
-```
-
-> **Exam Tip**: "VPC A can't reach VPC C through VPC B" = VPC peering is not transitive. Use Transit Gateway for hub-and-spoke.
-
 ---
 
-## VPC Flow Logs
+## Case Study Example: High Availability
+**Use Case:** Deploying a multi-tier application with redundancy
+- Public subnets: Host ALB with internet-facing configuration.
+- Private subnets: App and database tiers (distributed across AZs).
+- NAT Gateways: Enable internet access only for private subnets (updates, API requests).
+- Security Configuration:
+  - ALB Security Group: Allows HTTP(S) traffic from any source.
+  - App Security Group: Allows traffic only from ALB SG.
+  - DB Security Group: Allows traffic only from App SG.
 
-### Key Concepts
-- Capture **network traffic information** in your VPC
-- Levels: VPC, Subnet, or ENI
-- Destinations: CloudWatch Logs or S3
-- Captures: Source/dest IP, ports, protocol, action (ACCEPT/REJECT), packets, bytes
-
-### What Flow Logs DON'T Capture
-- DNS traffic to Route 53 Resolver
-- DHCP traffic
-- Traffic to instance metadata (169.254.169.254)
-- Traffic to reserved IPs (.0, .1, .2, .3)
-- NTP (123) and Windows license activation
-
-### Use Cases
-- Troubleshoot security group / NACL issues
-- Monitor traffic patterns
-- Detect anomalies (feed to GuardDuty)
-- Compliance logging
-
-> **Exam Tip**: "Monitor all network traffic in VPC" = VPC Flow Logs. "Analyze flow logs with SQL" = Flow Logs → S3 → Athena.
-
----
-
-## Bastion Host (Jump Server)
-
-### Key Concepts
-- EC2 instance in **public subnet** to SSH into private instances
-- Security: Only allow SSH (port 22) from specific IPs
-- Alternative: **SSM Session Manager** (no bastion needed, no port 22)
-
-```
-Your PC → SSH (port 22) → Bastion (public subnet)
-                              → SSH → Private Instance (private subnet)
-```
-
-> **Exam Tip**: "Access private EC2 without bastion" = Systems Manager Session Manager (more secure, no port 22 needed).
-
----
-
-## IPv6 in VPC
-- All IPv6 addresses are **public** (no NAT needed)
-- IPv6 CIDR assigned by AWS
-- Use **Egress-only Internet Gateway** for IPv6 outbound (equivalent of NAT for IPv6)
-- Dual-stack: Instances get both IPv4 and IPv6
-
----
-
-## VPC Design Patterns
-
-### Three-Tier Architecture
-```
-Public Subnet:  ALB (Internet-facing)
-Private Subnet: Application servers (ASG)
-Private Subnet: Database (RDS Multi-AZ)
-
-Security Groups:
-- ALB SG: Allow 80/443 from 0.0.0.0/0
-- App SG: Allow app port from ALB SG only
-- DB SG:  Allow 3306 from App SG only
-```
-
-### Key Design Principles
-1. Put **only what needs internet** in public subnets
-2. Use **least privilege** security groups (reference SG IDs, not IPs)
-3. Deploy across **multiple AZs** for HA
-4. Use **NAT Gateway per AZ** for private subnet internet
-5. Use **VPC Endpoints** for AWS service access (avoid NAT charges)
-6. Enable **Flow Logs** for troubleshooting and compliance
