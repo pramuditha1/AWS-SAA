@@ -1,0 +1,181 @@
+<h1>CloudFront and Global Accelerator — make it closer (two different tools)</h1>
+<div class="meta-row"><span class="pill must">Must-know</span><span class="pill domain">Domain 3 · edge, cache, static IPs</span></div>
+<p class="lede">CloudFront is AWS’s CDN for HTTP and HTTPS. It caches content at edge locations so users download from a nearby POP. Global Accelerator is a different product: two static anycast IPs that pull TCP or UDP onto the AWS backbone. Both help “users around the world.” They answer different exam stems.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>A single Region is far from half the planet. Fetching every image from that Region is slow and expensive. You also want a front door that can hide a private S3 bucket and stop some attacks before they reach your origin.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p><strong>CloudFront</strong> is a content delivery network: cacheable HTTP(S) at the edge, optional signed URLs, WAF, and edge code. <strong>Global Accelerator</strong> is a network accelerator: static anycast IPs, any TCP/UDP port you map, no HTTP cache.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>Both are <strong>global</strong> edge services. CloudFront POPs and Regional edge caches sit worldwide. Your origin (S3, ALB, custom HTTP) usually lives in a Region. Global Accelerator endpoints are Regional ALBs, NLBs, or Elastic IPs.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>Distribution · origin · cache behavior · OAC · signed URL/cookie · ACM in <code>us-east-1</code> · CloudFront Functions vs Lambda@Edge · Global Accelerator anycast IPs. Those cover almost every SAA edge question.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>Cache hit vs miss in one breath</h3>
+  <p>A viewer asks CloudFront for an object. If a nearby edge already has a fresh copy (<strong>cache hit</strong>), CloudFront returns it without touching your origin. If not (<strong>cache miss</strong>), CloudFront fetches from the origin, stores a copy (within TTL rules), and returns it. DNS does not do this — CloudFront does.</p>
+</div>
+
+<p><strong>Distribution</strong> — your CloudFront “site” configuration: origins, behaviors, certificates, and price class.</p>
+<p><strong>Origin</strong> — where CloudFront gets content on a miss: S3 (REST), ALB, EC2, API Gateway, MediaStore/MediaPackage, or a custom HTTP server.</p>
+<p><strong>Cache behavior</strong> — path rules such as <code>/images/*</code> → S3 with a long TTL, <code>/api/*</code> → ALB with little or no cache.</p>
+<p><strong>TTL</strong> — how long an object may stay cached. Versioned filenames (<code>app.a1b2c3.js</code>) beat emergency invalidations for static assets.</p>
+
+<h2>How CloudFront serves a request (from AWS docs)</h2>
+<p>AWS describes viewer → edge → (on miss) origin → cache → viewer. The Mermaid below follows that story.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  viewer[Viewer] --> pop[CloudFront_edge]
+  pop -->|cache_hit| viewer
+  pop -->|cache_miss| origin[Origin_S3_or_ALB]
+  origin --> pop
+  </div>
+  <p class="caption">Follows the overview in <a href="https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/HowCloudFrontWorks.html" target="_blank" rel="noopener">How CloudFront delivers content</a>. Open that page for AWS’s official diagram.</p>
+</div>
+
+<h2>OAC — keep the S3 bucket private</h2>
+<p><strong>Origin Access Control (OAC)</strong> lets CloudFront sign requests to S3. The bucket policy allows <code>s3:GetObject</code> only from that distribution. Block Public Access stays on. Guessing the S3 URL fails; using the distribution works (unless signed-URL checks fail).</p>
+<p><strong>Origin Access Identity (OAI)</strong> is the older pattern. Prefer OAC on new designs — it supports SSE-KMS objects and more Regions. Do not use a public S3 website endpoint and call it locked down; use the S3 REST origin + OAC.</p>
+
+<div class="exam-tip"><strong class="label">Remember</strong> “Users must not open the bucket directly” → OAC + bucket policy + Block Public Access. “Only paying users may download” → CloudFront signed URLs or cookies, still with OAC.</div>
+
+<h2>HTTPS certificates at the edge</h2>
+<p>For a custom domain on CloudFront, the ACM certificate must be in <strong><code>us-east-1</code></strong> (or imported there). Origin HTTPS to an ALB uses a certificate in the ALB’s Region. Route 53 <strong>alias</strong> records point the apex and <code>www</code> at the distribution.</p>
+
+<h2>CloudFront Functions vs Lambda@Edge</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th></th><th>CloudFront Functions</th><th>Lambda@Edge</th></tr></thead>
+  <tbody>
+    <tr><td>Where</td><td>Every POP, tiny and fast</td><td>Regional edge caches</td></tr>
+    <tr><td>Triggers</td><td>Viewer request / response</td><td>Viewer <em>and</em> origin request / response</td></tr>
+    <tr><td>Jobs</td><td>URL rewrite, header tweak, simple auth check</td><td>Call AWS APIs, pick an origin, heavier logic</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Global Accelerator — static IPs, no cache</h2>
+<p>Global Accelerator gives you <strong>two static anycast IPv4 addresses</strong>. Clients keep those IPs even if you move backends between Regions. Packets enter a nearby edge and travel the AWS backbone to an endpoint group (ALB, NLB, EIP). It does <strong>not</strong> cache HTTP and does <strong>not</strong> replace CloudFront for websites.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  q{{What does the stem want}}
+  q -->|cache_website_or_API_HTTP| cf[CloudFront]
+  q -->|static_IP_plus_TCP_or_UDP| ga[Global_Accelerator]
+  q -->|private_S3_via_CDN| oac[CloudFront_plus_OAC]
+  q -->|signed_downloads| signed[CloudFront_signed_URL]
+  </div>
+  <p class="caption">Decision view for SAA. Product overviews: <a href="https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/Introduction.html" target="_blank" rel="noopener">What is Amazon CloudFront?</a> and <a href="https://docs.aws.amazon.com/global-accelerator/latest/dg/what-is-global-accelerator.html" target="_blank" rel="noopener">What is AWS Global Accelerator?</a>.</p>
+</div>
+
+<div class="table-wrap"><table>
+  <thead><tr><th>Constraint</th><th>CloudFront</th><th>Global Accelerator</th></tr></thead>
+  <tbody>
+    <tr><td>Protocol</td><td>HTTP/HTTPS (streaming over HTTP)</td><td>TCP and UDP</td></tr>
+    <tr><td>Caching</td><td>Yes — that is the point</td><td>None</td></tr>
+    <tr><td>Addresses</td><td>DNS name; POP IPs change</td><td>Two static anycast IPs</td></tr>
+    <tr><td>Typical backend</td><td>S3, ALB, custom HTTP</td><td>NLB, ALB, EIP</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Use case 1 — static site with a private bucket</h2>
+<p><strong>Need:</strong> Global HTTPS site from S3; nobody opens the bucket URL directly.</p>
+<p><strong>Design:</strong> CloudFront + OAC + Block Public Access. ACM cert in <code>us-east-1</code>. Route 53 alias → distribution. Optional WAF on CloudFront.</p>
+<div class="mermaid">
+flowchart LR
+  user[User] --> r53[Route53_alias]
+  r53 --> cf[CloudFront]
+  cf --> oac[OAC]
+  oac --> s3[Private_S3]
+</div>
+
+<h2>Use case 2 — paid downloads</h2>
+<p><strong>Need:</strong> Only customers who paid may fetch large files; still use the CDN.</p>
+<p><strong>Design:</strong> CloudFront signed URLs (one object) or signed cookies (many objects / HLS). Keep OAC so a stolen S3 URL still fails.</p>
+
+<h2>Use case 3 — game server with firewall allowlists</h2>
+<p><strong>Need:</strong> Custom TCP, partners allowlist fixed IPs, failover between Regions.</p>
+<p><strong>Design:</strong> Global Accelerator → NLB/EIP endpoint groups with health checks. Not CloudFront.</p>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem language</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Cache images/HTML/API GET worldwide</td><td>CloudFront</td><td>Global Accelerator</td></tr>
+    <tr><td>Static anycast IP + TCP/UDP + Multi-Region failover</td><td>Global Accelerator</td><td>CloudFront</td></tr>
+    <tr><td>Hide S3; only CDN may read</td><td>OAC + bucket policy</td><td>Public bucket “with a secret prefix”</td></tr>
+    <tr><td>Custom domain HTTPS on CloudFront</td><td>ACM in us-east-1</td><td>ACM only in the origin Region</td></tr>
+    <tr><td>Simple header/URL rewrite at huge scale</td><td>CloudFront Functions</td><td>Regional Lambda as “edge”</td></tr>
+    <tr><td>Edge code that calls DynamoDB / picks origin</td><td>Lambda@Edge</td><td>CloudFront Functions</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — OAC and apex</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">You want <code>example.com</code> over HTTPS, content in S3, users must not read the bucket directly, caching worldwide.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Public S3 website endpoint and a CNAME at the apex. Apex CNAME is invalid; bucket is public.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> CloudFront + OAC + private bucket policy. Route 53 alias to CloudFront. ACM cert in <code>us-east-1</code>.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Global Accelerator in front of the S3 website endpoint. GA does not cache S3 websites.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Paste CloudFront POP IPs into apex A records. Those IPs change.</div>
+</div>
+
+<h2>Case study 2 — CloudFront vs Global Accelerator</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A VoIP appliance must dial fixed IPs. Traffic is UDP. Backends are NLBs in two Regions; unhealthy Region must drop out.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> CloudFront. Wrong protocol story; no static anycast product for UDP apps.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Global Accelerator with NLB endpoint groups and health checks.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Route 53 latency alone with changing NLB DNS names — partners insisted on fixed IPs.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> OAC on the NLB. OAC is for S3 origins.</div>
+</div>
+
+<h2>Case study 3 — Functions vs Lambda@Edge</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">At viewer request, rewrite <code>/blog</code> to <code>/blog/index.html</code> for millions of requests with minimal latency. No AWS API calls.</p>
+  <div class="opt win"><strong class="tag">A — correct</strong> CloudFront Functions on viewer-request.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Lambda@Edge that queries DynamoDB — heavier than needed.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Regional Lambda behind API Gateway as the only “edge.”</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Global Accelerator port override.</div>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>CloudFront is not Global Accelerator.</strong> Website/cache → CloudFront. Static IP + non-HTTP → Global Accelerator.</p>
+<p><strong>OAC ≠ ALB lock-down.</strong> For ALB origins, use security groups, a custom header secret, and/or WAF so clients cannot bypass CloudFront.</p>
+<p><strong>S3 presigned URL ≠ CloudFront signed URL.</strong> With CloudFront in front of a private bucket, prefer CloudFront signed URLs/cookies so auth and cache stay at the edge.</p>
+<p><strong>WAF on CloudFront</strong> inspects HTTP at the POP — preferred for a global site. Shield Standard already covers CloudFront.</p>
+
+<div class="exam-skip"><strong class="label">Light touch on the exam</strong> Cache-policy JSON details, Function package size tables, MediaPackage internals, Global Accelerator port-override matrices.</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/Introduction.html" target="_blank" rel="noopener">What is Amazon CloudFront?</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/HowCloudFrontWorks.html" target="_blank" rel="noopener">How CloudFront delivers content</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html" target="_blank" rel="noopener">Restrict access to an S3 origin (OAC)</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/PrivateContent.html" target="_blank" rel="noopener">Serving private content with signed URLs and cookies</a></li>
+  <li><a href="https://docs.aws.amazon.com/global-accelerator/latest/dg/what-is-global-accelerator.html" target="_blank" rel="noopener">What is AWS Global Accelerator?</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/route53.html">Route 53 and alias</a>
+  <a href="../learn/s3.html">S3 access and encryption</a>
+  <a href="../learn/security.html">WAF and Shield</a>
+  <a href="../compare/networking.html">Networking picker</a>
+</div>

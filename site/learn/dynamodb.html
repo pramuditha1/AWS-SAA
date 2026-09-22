@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DynamoDB and API Gateway · SAA-C03 Study</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Sinhala:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/docs.css">
+</head>
+<body data-root="../">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="topbar">
+    <button class="menu-btn" aria-label="Open menu">☰</button>
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">S</span>
+      SAA-C03 <span class="sub">study site</span>
+    </a>
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input id="site-search" type="search" placeholder="Search services…" autocomplete="off">
+      <div id="search-results" hidden></div>
+    </div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar"><div class="nav-group"><h2>Exam</h2><a href="../index.html">Service catalog</a><a href="../exam/overview.html">Exam overview</a><a href="../exam/domain-1-secure.html">Domain 1 · Secure 30%</a><a href="../exam/domain-2-resilient.html">Domain 2 · Resilient 26%</a><a href="../exam/domain-3-performance.html">Domain 3 · Performance 24%</a><a href="../exam/domain-4-cost.html">Domain 4 · Cost 20%</a><a href="../exam/out-of-scope.html">Out of scope</a></div>
+<div class="nav-group"><h2>Learn</h2><a href="../learn/foundations.html">Foundations</a><a href="../learn/well-architected.html">Well-Architected</a><a href="../learn/iam.html">IAM</a><a href="../learn/identity-federation.html">Cognito &amp; federation</a><a href="../learn/security.html">KMS, WAF, Shield</a><a href="../learn/specialty-security.html">Security extras</a><a href="../learn/s3.html">S3</a><a href="../learn/storage.html">EBS, EFS, FSx</a><a href="../learn/ec2.html">EC2</a><a href="../learn/elb-asg.html">Auto Scaling &amp; ELB</a><a href="../learn/vpc.html">VPC</a><a href="../learn/networking-advanced.html">Hybrid networking</a><a href="../learn/route53.html">Route 53</a><a href="../learn/cloudfront.html">CloudFront &amp; GA</a><a href="../learn/databases.html">RDS, Aurora, ElastiCache</a><a class="active" href="../learn/dynamodb.html">DynamoDB &amp; API Gateway</a><a href="../learn/specialty-databases.html">DocumentDB, Neptune</a><a href="../learn/messaging.html">SQS, SNS, Kinesis</a><a href="../learn/lambda.html">Lambda &amp; Step Functions</a><a href="../learn/integration-extras.html">AppSync, MSK, AppFlow</a><a href="../learn/monitoring.html">CloudWatch &amp; CloudTrail</a><a href="../learn/containers.html">ECS, EKS, Fargate</a><a href="../learn/migration.html">Migration &amp; DR</a><a href="../learn/analytics.html">Analytics</a><a href="../learn/governance.html">Organizations &amp; Config</a><a href="../learn/cost.html">Cost optimization</a><a href="../learn/hybrid-edge.html">Outposts &amp; Wavelength</a><a href="../learn/ml.html">Machine learning</a></div>
+<div class="nav-group"><h2>Compare</h2><a href="../compare/storage.html">Storage picker</a><a href="../compare/databases.html">Database picker</a><a href="../compare/messaging.html">Messaging picker</a><a href="../compare/compute.html">Compute picker</a><a href="../compare/networking.html">Networking picker</a><a href="../compare/dr.html">DR picker</a></div>
+<div class="nav-group"><h2>Sinhala</h2><a href="../sinhala/index.html">Sinhala notes</a></div></aside>
+    <main id="main">
+      <div class="crumb">Learn / DynamoDB</div>
+      <h1>DynamoDB — a fast key-value database you do not patch</h1>
+<div class="meta-row"><span class="pill must">Must-know</span><span class="pill domain">Domains 2 &amp; 3 · Resilient · Performance</span></div>
+<p class="lede">DynamoDB is AWS’s managed NoSQL database. You store items (rows) in a table, look them up by a key, and AWS keeps the data Multi-AZ and highly available. On the exam it is the default when you want single-digit millisecond reads, unpredictable traffic, and almost no database operations. API Gateway often sits in front as the HTTPS door for mobile or partner apps.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Relational databases are great for joins and complex queries, but they make you size instances, plan capacity, and babysit failover. Many apps only need “get this user,” “list this user’s orders,” or “write a session.” Those patterns want a simple, automatic, pay-per-use store.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p>Amazon DynamoDB is a fully managed <strong>key-value and document</strong> database. There is no SQL join engine and no server for you to patch. You design a <strong>primary key</strong>, choose a capacity mode, and call Get/Put/Query APIs (often from Lambda).</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>A table lives in one <strong>Region</strong>. Inside that Region, AWS stores copies across <strong>Availability Zones</strong> automatically — there is no Multi-AZ checkbox. <strong>Global Tables</strong> copy the same table to other Regions for active-active writes. <strong>DAX</strong> (a cache) sits in your VPC next to your app.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>Partition key · sort key · GSI/LSI · on-demand vs provisioned · eventually vs strongly consistent reads · Global Tables · DAX · Streams/TTL. API Gateway (REST vs HTTP, 29-second timeout) shows up when DynamoDB is the backend of a public API.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>Items, attributes, and keys</h3>
+  <p>An <strong>item</strong> is one record (like a row). An <strong>attribute</strong> is a field on that item. Every table needs a <strong>primary key</strong>. With only a <strong>partition key</strong> (also called hash key), each key value is unique — for example one profile per <code>userId</code>. With a partition key plus a <strong>sort key</strong> (range key), many items share the same partition — for example all orders for <code>userId</code>, sorted by <code>orderDate</code>.</p>
+</div>
+
+<p><strong>Partition</strong> — DynamoDB hashes the partition key and places items on a storage partition. Throughput scales by adding partitions. If almost all traffic hits one key (one popular product ID), that partition gets “hot” and throttles even when the table has spare capacity overall.</p>
+<p><strong>Query vs Scan</strong> — A <strong>Query</strong> uses the key (or an index key) and is cheap. A <strong>Scan</strong> reads the whole table (or index) and filters afterward — slow and expensive at scale. Exam stems about exploding bills almost always mean “they are scanning.”</p>
+<p><strong>Consistency</strong> — By default, reads are <strong>eventually consistent</strong> (usually catch up within a second, cheaper). A <strong>strongly consistent</strong> read always returns the latest write, costs more RCU, and works on the base table (and LSI) — <strong>not on a GSI</strong>.</p>
+
+<h2>How DynamoDB stores and scales (from AWS docs)</h2>
+<p>AWS describes DynamoDB as: you create a table with a key schema → clients Put/Get/Query items → DynamoDB handles partitioning, replication across AZs, and capacity. The diagram below follows that mental model.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  app[App_or_Lambda] --> api[DynamoDB_API]
+  api --> table[Table_in_Region]
+  table --> p1[Partition_A]
+  table --> p2[Partition_B]
+  table --> p3[Partition_C]
+  p1 --> az[Copies_across_AZs]
+  </div>
+  <p class="caption">Follows concepts in <a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.html" target="_blank" rel="noopener">Amazon DynamoDB: How it works</a>. Open that page for AWS’s official overview of tables, items, and partitions.</p>
+</div>
+
+<h2>Capacity: on-demand vs provisioned</h2>
+<p><strong>On-demand</strong> bills per request. Traffic can spike without you pre-setting RCU/WCU. Use it when load is unknown, spiky, or “new product — we will not tune capacity.”</p>
+<p><strong>Provisioned</strong> asks you for read capacity units (RCU) and write capacity units (WCU), often with auto scaling. One RCU ≈ one strongly consistent 4 KB read per second (or two eventually consistent). One WCU ≈ one 1 KB write per second. Use provisioned when traffic is steady and you can predict (or discount) capacity.</p>
+<p>On-demand is a <strong>billing mode</strong>, not a slower engine. Do not pick provisioned “for performance” when the stem is about unpredictable load.</p>
+
+<div class="exam-tip"><strong class="label">Remember</strong> Unpredictable / spiky / least ops → <strong>on-demand</strong>. Smooth known load → provisioned (+ auto scaling). Never “provision huge WCU to fix a hot partition” — fix the key design.</div>
+
+<h2>Secondary indexes — when the first key is not enough</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Index</th><th>In plain English</th><th>Exam rule</th></tr></thead>
+  <tbody>
+    <tr><td><strong>LSI</strong></td><td>Same partition key, different sort key</td><td>Create only with the table; can be strongly consistent; shares table capacity</td></tr>
+    <tr><td><strong>GSI</strong></td><td>New partition key (and optional sort)</td><td>Can add later; <strong>eventually consistent only</strong>; own capacity (or on-demand)</td></tr>
+  </tbody>
+</table></div>
+<p>Need “look up by email” when the table is keyed by <code>userId</code>? That is a <strong>GSI</strong> on email. Need “same user’s items sorted by status instead of date,” decided at create time? That can be an <strong>LSI</strong>. Asking for a <strong>strongly consistent read on a GSI</strong> is always wrong — redesign the primary key or read the base table.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  q{{Need another access pattern}}
+  q -->|same partition key different sort| lsi[LSI_at_create_time]
+  q -->|different partition key e.g. email| gsi[GSI_add_anytime]
+  q -->|must be strongly consistent| base[Read_base_table_or_redesign_PK]
+  gsi -->|reads are| ec[Eventually_consistent_only]
+  </div>
+  <p class="caption">Index choice for SAA. Definitions: <a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/SecondaryIndexes.html" target="_blank" rel="noopener">Improving data access with secondary indexes</a>.</p>
+</div>
+
+<h2>Global Tables, DAX, Streams, TTL</h2>
+<p><strong>Global Tables</strong> — multi-Region <em>active-active</em> replication. Write in Tokyo and Ireland; each Region has a local copy. Conflicts use <strong>last-writer-wins</strong> per item. This is not Aurora Global (one writer Region). Pick Global Tables when the stem wants local writes in more than one Region or regional isolation with active-active.</p>
+<p><strong>DAX</strong> — DynamoDB Accelerator, a write-through cache in your VPC for <strong>microsecond</strong> repeated reads of the same keys. Prefer DAX when the stem says microsecond / DynamoDB-compatible cache with least app change. ElastiCache works too but needs more application code.</p>
+<p><strong>Streams</strong> — ordered change log (~24 hours). Lambda can react to inserts/updates. Not a long-term audit vault (use PITR / AWS Backup).</p>
+<p><strong>TTL</strong> — an epoch attribute; DynamoDB eventually deletes expired items (sessions, temp links). Not a precise legal-hold clock.</p>
+
+<h2>API Gateway in one page (when DynamoDB is the backend)</h2>
+<p>API Gateway is the managed HTTPS front door. A client hits a stage URL → auth → integration (often Lambda → DynamoDB, or a direct AWS service proxy).</p>
+<p><strong>Hard limit:</strong> HTTP/REST <strong>integration timeout ≈ 29 seconds</strong>. Even if Lambda can run 15 minutes, a synchronous API Gateway call dies at ~29 s. Long work must return <strong>202</strong> and finish via SQS or Step Functions.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th></th><th>REST API</th><th>HTTP API</th></tr></thead>
+  <tbody>
+    <tr><td>When it wins</td><td>API keys + usage plans, richer features</td><td>Cheaper, JWT auth, simple Lambda proxy</td></tr>
+    <tr><td>Trap</td><td>Heavier than you need for a simple JWT API</td><td>No REST-style usage plans</td></tr>
+  </tbody>
+</table></div>
+<p>API keys meter and throttle partners — they are <strong>not</strong> real authentication by themselves. Pair them with Cognito, IAM, or a Lambda authorizer.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+sequenceDiagram
+  participant Client
+  participant APIGW
+  participant Lambda
+  participant DDB
+  Client->>APIGW: HTTPS_request
+  APIGW->>Lambda: Invoke_within_29s
+  Lambda->>DDB: GetItem_or_Query
+  DDB-->>Lambda: item
+  Lambda-->>APIGW: 200
+  APIGW-->>Client: response
+  </div>
+  <p class="caption">Typical serverless path. Overview: <a href="https://docs.aws.amazon.com/apigateway/latest/developerguide/welcome.html" target="_blank" rel="noopener">What is Amazon API Gateway?</a></p>
+</div>
+
+<h2>Use case 1 — mobile game inventory</h2>
+<p><strong>Need:</strong> Spiky launch traffic, look up by player ID (always fresh) and by score (leaderboard can be slightly stale), hot catalog keys read constantly.</p>
+<p><strong>Design:</strong> On-demand table keyed by <code>playerId</code>. Strongly consistent Get on the base table for the bag. GSI on score for the leaderboard. DAX for catalog keys.</p>
+<div class="mermaid">
+flowchart LR
+  game[Game_client] --> api[API_Gateway]
+  api --> fn[Lambda]
+  fn --> ddb[DynamoDB_on_demand]
+  fn --> dax[DAX_catalog]
+  ddb --> gsi[GSI_score]
+</div>
+
+<h2>Use case 2 — active-active preferences worldwide</h2>
+<p><strong>Need:</strong> Users in the US and EU write preferences locally; a Region outage must not block writes; last-writer-wins is OK.</p>
+<p><strong>Design:</strong> DynamoDB Global Tables in both Regions. App writes to the local endpoint.</p>
+<div class="mermaid">
+flowchart LR
+  usUser[US_user] --> usTable[Table_us_east_1]
+  euUser[EU_user] --> euTable[Table_eu_west_1]
+  usTable <-->|Global_Tables_sync| euTable
+</div>
+<p>Detail: <a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GlobalTables.html" target="_blank" rel="noopener">Global Tables</a>.</p>
+
+<h2>Use case 3 — API that starts a long job</h2>
+<p><strong>Need:</strong> Partners POST a video; processing takes minutes; Cognito JWT already exists; some partners need daily request caps.</p>
+<p><strong>Design:</strong> REST API + Cognito authorizer + usage plans. Lambda returns 202 and starts Step Functions/SQS. Never hold the HTTPS call for the whole render.</p>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem language</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Unpredictable / spiky / least ops key-value</td><td>DynamoDB on-demand</td><td>Provisioned with no auto scaling; RDS you must size</td></tr>
+    <tr><td>Query by another attribute (email)</td><td>GSI</td><td>Scan; LSI with a new partition key</td></tr>
+    <tr><td>Strongly consistent + non-primary key</td><td>Redesign PK or read base table</td><td>Strongly consistent GSI Get</td></tr>
+    <tr><td>Microsecond repeated DynamoDB reads</td><td>DAX</td><td>CloudFront (HTTP objects); Global Tables (multi-Region)</td></tr>
+    <tr><td>Active-active multi-Region writes</td><td>Global Tables</td><td>Homemade Streams replicator; Aurora Global as drop-in</td></tr>
+    <tr><td>Work takes minutes over HTTPS</td><td>202 + SQS / Step Functions</td><td>Raise API Gateway timeout past 29 s</td></tr>
+    <tr><td>Partner throttling + API keys</td><td>REST + usage plans</td><td>HTTP API usage plans</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — on-demand, GSI, DAX</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A mobile game stores inventories in DynamoDB. Traffic is quiet at night and can jump 100× at launch. Leaderboards query by <code>score</code>; bag opens need the latest inventory. A few catalog keys are read constantly and must be as fast as DynamoDB allows. Least ops, cost-aware, highly available?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Huge fixed provisioned RCU/WCU, add an LSI on score a week later, Memcached on EC2.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> On-demand + GSI on score + strongly consistent GSI reads for bag and leaderboard; no cache.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> On-demand, PK = <code>playerId</code>, strongly consistent Get on base table for the bag, GSI on score for leaderboard, DAX for catalog.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Move to RDS Multi-AZ and cache inventory in CloudFront for 24 hours.</div>
+  <p>A cannot add an LSI later and adds servers. B invents strongly consistent GSI reads. D is the wrong database and a stale CDN. C matches traffic shape, consistency rules, and the microsecond hint.</p>
+</div>
+
+<h2>Case study 2 — Global Tables</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Preferences must be writable in <code>us-east-1</code> and <code>eu-west-1</code> with low local latency. Region failure must not block writes. Last-writer-wins is fine. Data is already in DynamoDB. Least ops?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Aurora Global + nightly DMS from DynamoDB.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> DynamoDB Global Tables; app writes to the local Regional endpoint.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Custom Streams + Lambda replicator and manual failover flags.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> On-demand backup every 15 minutes and restore in the other Region.</div>
+  <p>B is the managed active-active feature. A changes engines. C reinvented Global Tables. D is DR with poor RPO/RTO, not active-active.</p>
+</div>
+
+<h2>Case study 3 — the 29-second wall</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Partners submit videos over HTTPS. Processing takes 3–8 minutes. JWTs come from Cognito. Some partners need 10 requests/day with rotatable keys. Backend is already Lambda + S3.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> HTTP API, JWT auth, timeout set to 10 minutes, usage plans on HTTP API.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> ALB → Lambda, give each partner an IAM user access key.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> REST API + Cognito + API keys/usage plans; Lambda starts the job and returns 202; client polls or gets a callback.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> WebSocket held open for 8 minutes while one sync Lambda runs to completion.</div>
+  <p>Integration timeout stays ~29 s; HTTP API lacks REST usage plans; IAM users for partners are ops hell. Async accept is the design.</p>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>GSI reads are eventually consistent only.</strong> Strong consistency → base table or a better primary key.</p>
+<p><strong>LSI vs GSI.</strong> LSI = same partition key, create-time only. GSI = new partition key, add later, own capacity.</p>
+<p><strong>On-demand vs provisioned</strong> is about predictability, not raw speed.</p>
+<p><strong>Hot partitions</strong> are a key-design problem. Adaptive capacity helps briefly; it does not invent infinite writes on one key.</p>
+<p><strong>DAX vs ElastiCache vs CloudFront.</strong> DAX = DynamoDB API, microseconds. Redis = app-shaped cache. CloudFront = edge HTTP.</p>
+<p><strong>Streams ≈ 24 hours</strong> for change-driven compute — not your compliance archive.</p>
+<p><strong>API keys ≠ users.</strong> Auth is Cognito/IAM/Lambda authorizer; keys are metering.</p>
+
+<div class="exam-skip"><strong class="label">Light touch on the exam</strong> PartiQL deep syntax, contributor insights dashboards, every DAX cluster knob. Know DAX exists for microsecond DynamoDB reads.</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Introduction.html" target="_blank" rel="noopener">What is Amazon DynamoDB?</a></li>
+  <li><a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.html" target="_blank" rel="noopener">How it works</a></li>
+  <li><a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadConsistency.html" target="_blank" rel="noopener">Read consistency</a></li>
+  <li><a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/SecondaryIndexes.html" target="_blank" rel="noopener">Secondary indexes</a></li>
+  <li><a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.CapacityModes.html" target="_blank" rel="noopener">Capacity modes</a></li>
+  <li><a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GlobalTables.html" target="_blank" rel="noopener">Global Tables</a></li>
+  <li><a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DAX.html" target="_blank" rel="noopener">DAX</a></li>
+  <li><a href="https://docs.aws.amazon.com/apigateway/latest/developerguide/welcome.html" target="_blank" rel="noopener">API Gateway</a></li>
+  <li><a href="https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-vs-rest.html" target="_blank" rel="noopener">REST vs HTTP APIs</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/databases.html">RDS, Aurora, ElastiCache</a>
+  <a href="../learn/lambda.html">Lambda &amp; Step Functions</a>
+  <a href="../learn/messaging.html">SQS, SNS, Kinesis</a>
+  <a href="../learn/identity-federation.html">Cognito &amp; federation</a>
+  <a href="../compare/databases.html">Database picker</a>
+</div>
+
+    </main>
+  </div>
+  <script src="../assets/js/catalog-data.js"></script>
+  <script src="../assets/js/nav.js?v=2"></script>
+  <script src="../assets/js/search.js"></script>
+  <script src="../assets/js/catalog.js"></script>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "dark",
+      securityLevel: "loose",
+      themeVariables: {
+        darkMode: true,
+        background: "#0a101c",
+        primaryColor: "#243656",
+        primaryTextColor: "#e8eef8",
+        primaryBorderColor: "#ff9900",
+        lineColor: "#9aabc4",
+        secondaryColor: "#1a2438",
+        tertiaryColor: "#121a2b",
+        nodeTextColor: "#e8eef8"
+      }
+    });
+  </script>
+</body>
+</html>

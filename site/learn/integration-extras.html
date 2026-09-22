@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AppSync, MSK, AppFlow · SAA-C03 Study</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Sinhala:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/docs.css">
+</head>
+<body data-root="../">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="topbar">
+    <button class="menu-btn" aria-label="Open menu">☰</button>
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">S</span>
+      SAA-C03 <span class="sub">study site</span>
+    </a>
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input id="site-search" type="search" placeholder="Search services…" autocomplete="off">
+      <div id="search-results" hidden></div>
+    </div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar"><div class="nav-group"><h2>Exam</h2><a href="../index.html">Service catalog</a><a href="../exam/overview.html">Exam overview</a><a href="../exam/domain-1-secure.html">Domain 1 · Secure 30%</a><a href="../exam/domain-2-resilient.html">Domain 2 · Resilient 26%</a><a href="../exam/domain-3-performance.html">Domain 3 · Performance 24%</a><a href="../exam/domain-4-cost.html">Domain 4 · Cost 20%</a><a href="../exam/out-of-scope.html">Out of scope</a></div>
+<div class="nav-group"><h2>Learn</h2><a href="../learn/foundations.html">Foundations</a><a href="../learn/well-architected.html">Well-Architected</a><a href="../learn/iam.html">IAM</a><a href="../learn/identity-federation.html">Cognito &amp; federation</a><a href="../learn/security.html">KMS, WAF, Shield</a><a href="../learn/specialty-security.html">Security extras</a><a href="../learn/s3.html">S3</a><a href="../learn/storage.html">EBS, EFS, FSx</a><a href="../learn/ec2.html">EC2</a><a href="../learn/elb-asg.html">Auto Scaling &amp; ELB</a><a href="../learn/vpc.html">VPC</a><a href="../learn/networking-advanced.html">Hybrid networking</a><a href="../learn/route53.html">Route 53</a><a href="../learn/cloudfront.html">CloudFront &amp; GA</a><a href="../learn/databases.html">RDS, Aurora, ElastiCache</a><a href="../learn/dynamodb.html">DynamoDB &amp; API Gateway</a><a href="../learn/specialty-databases.html">DocumentDB, Neptune</a><a href="../learn/messaging.html">SQS, SNS, Kinesis</a><a href="../learn/lambda.html">Lambda &amp; Step Functions</a><a class="active" href="../learn/integration-extras.html">AppSync, MSK, AppFlow</a><a href="../learn/monitoring.html">CloudWatch &amp; CloudTrail</a><a href="../learn/containers.html">ECS, EKS, Fargate</a><a href="../learn/migration.html">Migration &amp; DR</a><a href="../learn/analytics.html">Analytics</a><a href="../learn/governance.html">Organizations &amp; Config</a><a href="../learn/cost.html">Cost optimization</a><a href="../learn/hybrid-edge.html">Outposts &amp; Wavelength</a><a href="../learn/ml.html">Machine learning</a></div>
+<div class="nav-group"><h2>Compare</h2><a href="../compare/storage.html">Storage picker</a><a href="../compare/databases.html">Database picker</a><a href="../compare/messaging.html">Messaging picker</a><a href="../compare/compute.html">Compute picker</a><a href="../compare/networking.html">Networking picker</a><a href="../compare/dr.html">DR picker</a></div>
+<div class="nav-group"><h2>Sinhala</h2><a href="../sinhala/index.html">Sinhala notes</a></div></aside>
+    <main id="main">
+      <div class="crumb">Learn / Integration extras</div>
+      <h1>Integration extras — AppSync, MSK, and AppFlow</h1>
+<div class="meta-row"><span class="pill should">Should / name</span><span class="pill domain">Domain 2 · when SQS/API Gateway is not the named fit</span></div>
+<p class="lede">Default SAA decoupling is SQS, SNS, EventBridge, Kinesis, and API Gateway. These three extras appear when the stem names GraphQL, Apache Kafka, or “pull Salesforce into S3 without writing Glue.”</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Mobile apps want GraphQL subscriptions. Kafka estates refuse a rewrite to Kinesis. SaaS admins want scheduled sync without custom connectors.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p><strong>AWS AppSync</strong> — managed GraphQL (and real-time subscriptions). <strong>Amazon MSK</strong> — managed Apache Kafka. <strong>Amazon AppFlow</strong> — no-code SaaS ↔ AWS data flows.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>Regional managed services. MSK brokers live in your VPC. AppSync is an AWS endpoint in front of data sources (DynamoDB, Lambda, HTTP). AppFlow runs in a Region to S3/Redshift/etc.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>GraphQL → AppSync · Kafka API → MSK · AWS-native stream → Kinesis · SaaS to S3 → AppFlow. Do not pick both MSK and Kinesis for the same constraint.</p>
+    </div>
+  </div>
+</div>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  q{{Named_need}}
+  q -->|GraphQL_subs_offline| appsync[AppSync]
+  q -->|Kafka_API| msk[MSK]
+  q -->|AWS_native_stream| kin[Kinesis]
+  q -->|SaaS_to_S3_no_code| flow[AppFlow]
+  </div>
+  <p class="caption">Extras fork. Docs: <a href="https://docs.aws.amazon.com/appsync/latest/devguide/what-is-appsync.html" target="_blank" rel="noopener">What is AWS AppSync?</a>, <a href="https://docs.aws.amazon.com/msk/latest/developerguide/what-is-msk.html" target="_blank" rel="noopener">What is Amazon MSK?</a>, <a href="https://docs.aws.amazon.com/appflow/latest/userguide/what-is-appflow.html" target="_blank" rel="noopener">What is Amazon AppFlow?</a>.</p>
+</div>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem</th><th>Pick</th><th>Common distractor</th></tr></thead>
+  <tbody>
+    <tr><td>GraphQL, subscriptions, offline sync</td><td>AppSync</td><td>API Gateway REST only; DynamoDB Streams alone</td></tr>
+    <tr><td>Keep Kafka producers/consumers/partitions</td><td>MSK</td><td>Kinesis rewrite; Amazon MQ (not Kafka)</td></tr>
+    <tr><td>New AWS-native analytics stream</td><td>Kinesis</td><td>MSK when Kafka was never required</td></tr>
+    <tr><td>Salesforce/ServiceNow → S3/Redshift, least code</td><td>AppFlow</td><td>Custom Lambda connectors; DMS (databases)</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — Kafka stay Kafka</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">On-premises Kafka must move to AWS; consumer groups and partition keys stay; no producer rewrite this quarter.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Kinesis PutRecords rewrite.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Amazon MSK.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> SQS FIFO.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Amazon MQ ActiveMQ.</div>
+</div>
+
+<h2>Case study 2 — GraphQL mobile</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Mobile app needs GraphQL with real-time subscriptions on DynamoDB changes and offline sync; least ops.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Hand-rolled API Gateway + WebSockets.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> AWS AppSync with DynamoDB data source.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> MSK as the client API.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> AppFlow.</div>
+</div>
+
+<div class="exam-tip"><strong class="label">Remember</strong> Kafka API → MSK. AWS-native stream → Kinesis. GraphQL → AppSync. SaaS sync → AppFlow.</div>
+
+<h2>Tricky points</h2>
+<p><strong>MSK ≠ Amazon MQ.</strong> MQ is ActiveMQ/RabbitMQ/JMS. Kafka clients need MSK (or self-managed Kafka).</p>
+<p><strong>AppFlow ≠ DMS.</strong> DMS moves databases. AppFlow moves SaaS application data.</p>
+<p><strong>AppSync ≠ API Gateway REST.</strong> When the stem says GraphQL/subscriptions, AppSync is the managed fit.</p>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/appsync/latest/devguide/what-is-appsync.html" target="_blank" rel="noopener">AWS AppSync</a></li>
+  <li><a href="https://docs.aws.amazon.com/msk/latest/developerguide/what-is-msk.html" target="_blank" rel="noopener">Amazon MSK</a></li>
+  <li><a href="https://docs.aws.amazon.com/appflow/latest/userguide/what-is-appflow.html" target="_blank" rel="noopener">Amazon AppFlow</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../compare/messaging.html">Messaging picker</a>
+  <a href="../learn/messaging.html">Kinesis / SQS / SNS</a>
+  <a href="../learn/dynamodb.html">API Gateway and DynamoDB</a>
+</div>
+
+    </main>
+  </div>
+  <script src="../assets/js/catalog-data.js"></script>
+  <script src="../assets/js/nav.js?v=2"></script>
+  <script src="../assets/js/search.js"></script>
+  <script src="../assets/js/catalog.js"></script>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "dark",
+      securityLevel: "loose",
+      themeVariables: {
+        darkMode: true,
+        background: "#0a101c",
+        primaryColor: "#243656",
+        primaryTextColor: "#e8eef8",
+        primaryBorderColor: "#ff9900",
+        lineColor: "#9aabc4",
+        secondaryColor: "#1a2438",
+        tertiaryColor: "#121a2b",
+        nodeTextColor: "#e8eef8"
+      }
+    });
+  </script>
+</body>
+</html>

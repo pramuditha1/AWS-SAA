@@ -1,0 +1,195 @@
+<h1>Well-Architected Framework — six pillars that guide every answer</h1>
+<div class="meta-row"><span class="pill must">Must-know</span><span class="pill domain">Every scored question · six pillars</span></div>
+<p class="lede">The AWS Well-Architected Framework is not a product you turn on. It is a checklist of good design: how you run the system, how you secure it, how it recovers, how fast it is, how much it costs, and how much energy it wastes. On SAA-C03, when two answers both “work,” the better one usually matches the pillar the stem just named.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Cloud designs have trade-offs. Multi-AZ costs more. A public bucket is cheaper until it is a breach. You need a shared language for “good” so teams and exam writers grade the same way.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p>The framework is six <strong>pillars</strong>: operational excellence, security, reliability, performance efficiency, cost optimization, and sustainability. Each pillar has design principles (short rules like “stop guessing capacity”).</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>It applies to every workload in every Region. The Well-Architected Tool is an optional AWS console helper for reviews. On the exam you do the review in your head in about a minute.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>The six pillars · trade-offs (reliability vs cost) · design-principle phrases in stems · Multi-AZ vs Multi-Region under reliability · utilization under sustainability. Those cover almost every WAF question.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>Pillars are questions, not products</h3>
+  <p>You do not “install reliability.” You ask: Can this survive an AZ failure? Can we roll back a bad change? Is encryption on? Are we paying for idle machines all night? The services (Auto Scaling, KMS, CloudFront) are tools that answer those questions.</p>
+</div>
+
+<p><strong>Operational excellence</strong> — how you run and improve the system: infrastructure as code, small reversible changes, monitoring, learning from incidents.</p>
+<p><strong>Security</strong> — who can do what, encryption, logging, defense in layers, least privilege.</p>
+<p><strong>Reliability</strong> — meet demand and recover from failure: Multi-AZ, Auto Scaling, tested backups, buffers such as SQS.</p>
+<p><strong>Performance efficiency</strong> — right-sized resources, elasticity, managed/serverless when they fit, global delivery when users are worldwide.</p>
+<p><strong>Cost optimization</strong> — pay for value: right-size, turn idle off, Savings Plans/Spot when appropriate, measure the bill.</p>
+<p><strong>Sustainability</strong> — maximize utilization, prefer efficient hardware and managed services, move and store less data.</p>
+
+<h2>How the framework is meant to be used (from AWS docs)</h2>
+<p>AWS walks through pillars as a review: for each pillar you answer questions, find risks, and improve. On the exam, read the stem for pillar words, then pick the architecture that implements them.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  stem[Exam_stem] --> oe[OperationalExcellence]
+  stem --> sec[Security]
+  stem --> rel[Reliability]
+  stem --> perf[PerformanceEfficiency]
+  stem --> cost[CostOptimization]
+  stem --> sus[Sustainability]
+  oe --> pick[Choose_architecture]
+  sec --> pick
+  rel --> pick
+  perf --> pick
+  cost --> pick
+  sus --> pick
+  </div>
+  <p class="caption">Pillar list from <a href="https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html" target="_blank" rel="noopener">AWS Well-Architected Framework</a>. Open that page for the official overview.</p>
+</div>
+
+<p>When the stem does not name a pillar, use this order (same spirit as foundations): functional fit → security → resilience → performance → cost last. Do not pick a cheap single-AZ database if the stem required HA.</p>
+
+<div class="exam-tip"><strong class="label">Remember</strong> Circle pillar language: “automatically recover,” “least privilege,” “stop guessing capacity,” “most cost-effective,” “reduce environmental impact.” The answer that implements the phrase wins.</div>
+
+<h2>The six pillars, simply</h2>
+
+<h3>Operational excellence</h3>
+<p>Run operations as code (CloudFormation/CDK). Make small, reversible changes (blue/green, rolling, Lambda aliases). Watch the system (CloudWatch, alarms, canaries). Prefer Session Manager over unlogged SSH with a shared key. If outages are discovered from customer tweets, you need metrics first — not a bigger instance.</p>
+
+<h3>Security</h3>
+<p>Strong identity (IAM roles, MFA, Identity Center for staff, Cognito for app users). Traceability (CloudTrail). Protect data in transit and at rest (TLS, KMS). Layers (private subnets, security groups, WAF). Security usually beats cost: a public bucket is not “cost optimized.”</p>
+
+<h3>Reliability</h3>
+<p>Recover automatically, test recovery, scale horizontally, stop guessing capacity. Multi-AZ and Auto Scaling for AZ/instance failure. Multi-Region only when the stem names Region loss or a DR RTO/RPO. SQS and retries help with transient failures.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  fail[Failure_mode] --> inst[One_instance]
+  fail --> az[One_AZ]
+  fail --> region[One_Region]
+  inst --> asg[ASG_plus_ALB]
+  az --> multi[MultiAZ_compute_and_data]
+  region --> dr[Backup_pilot_warm_or_active]
+  </div>
+  <p class="caption">Failure domains under the <a href="https://docs.aws.amazon.com/wellarchitected/latest/framework/reliability.html" target="_blank" rel="noopener">Reliability pillar</a>. AZ loss ≠ Region loss.</p>
+</div>
+
+<h3>Performance efficiency</h3>
+<p>Match the tool to the access pattern (mechanical sympathy): DynamoDB for key-value at scale, EFS for shared Linux files, CloudFront for global HTTP cache. Prefer managed/serverless when the workload fits. Experiment and measure.</p>
+
+<h3>Cost optimization</h3>
+<p>Consumption model: scale in at night. Right-size. Savings Plans / Reserved for steady load; Spot for interruptible work. Lifecycle cold data. Prefer a free gateway VPC endpoint to S3 over a NAT when that is enough. Measure with Cost Explorer and Budgets.</p>
+
+<h3>Sustainability</h3>
+<p>Maximize utilization (right-size, scale to zero, Graviton where it fits). Prefer managed multi-tenant services. Store less and move data less. Sustainability answers often look like good cost answers — that is fine. If the stem says carbon or energy, say “utilization” out loud.</p>
+
+<h2>Use case 1 — global images, lower bill</h2>
+<p><strong>Need:</strong> Higher availability, lower latency worldwide, lower EC2 cost. Today: one AZ, files on instance store.</p>
+<p><strong>Design:</strong> Objects in S3, CloudFront in front (OAC), any remaining compute in at least two AZs. Cache hits cut origin cost and latency. That hits reliability, performance, and cost together.</p>
+<div class="mermaid">
+flowchart LR
+  user[User] --> cf[CloudFront]
+  cf --> s3[S3_origin]
+</div>
+
+<h2>Use case 2 — night-idle API</h2>
+<p><strong>Need:</strong> Less environmental impact and no guest-OS patching. API idle at night, busy at 09:00.</p>
+<p><strong>Design:</strong> API Gateway + Lambda (or Fargate that scales in), right-size memory, Region that meets latency and energy guidance. Fixed 24×7 fleets fight sustainability.</p>
+
+<h2>How to choose — stem language → pillar → pick</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem language</th><th>Pillar</th><th>Typical pick</th><th>Typical wrong</th></tr></thead>
+  <tbody>
+    <tr><td>Rollback in minutes, IaC, no SSH shared keys</td><td>Operational excellence</td><td>Pipeline + Session Manager</td><td>Wiki-only runbook</td></tr>
+    <tr><td>Least privilege, encryption, audit who decrypted</td><td>Security</td><td>IAM roles, KMS, CloudTrail</td><td>Keys on instances; public bucket</td></tr>
+    <tr><td>Survive AZ loss; Auto Scaling</td><td>Reliability</td><td>Multi-AZ + ASG + ALB</td><td>Single large instance</td></tr>
+    <tr><td>Milliseconds; global users; cache</td><td>Performance</td><td>CloudFront / ElastiCache / right DB</td><td>One giant EC2</td></tr>
+    <tr><td>Most cost-effective among valid designs</td><td>Cost</td><td>Right-size, Spot, lifecycle, endpoints</td><td>Cheap but breaks HA/security</td></tr>
+    <tr><td>Carbon, energy, environmental impact</td><td>Sustainability</td><td>High utilization, managed scale-to-need</td><td>Idle always-on capacity</td></tr>
+  </tbody>
+</table></div>
+
+<p>Services often map like this (not a memorize-wall — a start):</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Pillar</th><th>Common services on a correct answer</th></tr></thead>
+  <tbody>
+    <tr><td>Operational excellence</td><td>CloudFormation, CodePipeline, CloudWatch, Systems Manager</td></tr>
+    <tr><td>Security</td><td>IAM, KMS, CloudTrail, WAF, Shield, private subnets</td></tr>
+    <tr><td>Reliability</td><td>Multi-AZ, ASG, ALB, SQS, Route 53 failover, tested backups</td></tr>
+    <tr><td>Performance</td><td>CloudFront, ElastiCache, DynamoDB, purpose-chosen EBS types</td></tr>
+    <tr><td>Cost</td><td>Savings Plans, Spot, S3 lifecycle, Compute Optimizer, gateway endpoints</td></tr>
+    <tr><td>Sustainability</td><td>Scale-in, Graviton, serverless/managed, less data movement</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — three pillars in one stem</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A media company serves images from an Auto Scaling group in one AZ behind a public ALB. Objects live on instance store. Leadership wants higher availability, lower latency on other continents, and a lower EC2 bill. Best Well-Architected fit?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Keep instance store; add a second Region of the same design with latency routing.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Move to the largest memory-optimized instance in one AZ to cache more in RAM.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> Put objects in S3, CloudFront in front with OAC, and spread any remaining compute across at least two AZs.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Give each instance an Elastic IP and teach users to pick the closest IP.</div>
+</div>
+
+<h2>Case study 2 — sustainability is utilization</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A stateless API idles at night and spikes at 09:00. The company wants less environmental impact and to stop patching web servers. Best design?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Fixed newest x86 fleet 24×7 in three Regions so capacity is always ready.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> API Gateway + Lambda (or Fargate with scale-in), right-size memory, Region that meets latency and energy guidance.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Keep EC2 but disable CloudWatch to “save energy.”</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Buy Reserved Instances for the current oversized 24×7 fleet as a sustainability control.</div>
+</div>
+
+<h2>Case study 3 — reliability without gold-plating</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">An internal timesheet app must stay up if an AZ fails. RPO can be minutes. No need to survive a full Region outage. Most cost-effective reliable design?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Aurora Global Database plus an active second Region and latency routing.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> ALB + Auto Scaling across two or more AZs and RDS Multi-AZ (or Aurora Multi-AZ) in one Region.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> One large instance with a weekly EBS snapshot.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Two instances in the same AZ for lower latency.</div>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>Cost is the last filter, not the first.</strong> Single-AZ prod is not “cost optimized” if the stem required HA.</p>
+<p><strong>Sustainability is not a new SKU.</strong> It is utilization, efficient hardware, managed services, and less data movement.</p>
+<p><strong>Reliability has two failure domains.</strong> Multi-AZ for AZ loss; Multi-Region for Region loss.</p>
+<p><strong>Two pillars can appear in one stem.</strong> Meet both; do not optimize only the cheaper one.</p>
+
+<div class="exam-skip"><strong class="label">Light touch on the exam</strong> Well-Architected Tool question IDs, lens catalogs (Serverless Lens, and so on), consulting process. Know the six pillars and the design ideas.</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html" target="_blank" rel="noopener">AWS Well-Architected Framework</a></li>
+  <li><a href="https://docs.aws.amazon.com/wellarchitected/latest/framework/operational-excellence.html" target="_blank" rel="noopener">Operational excellence pillar</a></li>
+  <li><a href="https://docs.aws.amazon.com/wellarchitected/latest/framework/security.html" target="_blank" rel="noopener">Security pillar</a></li>
+  <li><a href="https://docs.aws.amazon.com/wellarchitected/latest/framework/reliability.html" target="_blank" rel="noopener">Reliability pillar</a></li>
+  <li><a href="https://docs.aws.amazon.com/wellarchitected/latest/framework/performance-efficiency.html" target="_blank" rel="noopener">Performance efficiency pillar</a></li>
+  <li><a href="https://docs.aws.amazon.com/wellarchitected/latest/framework/cost-optimization.html" target="_blank" rel="noopener">Cost optimization pillar</a></li>
+  <li><a href="https://docs.aws.amazon.com/wellarchitected/latest/framework/sustainability.html" target="_blank" rel="noopener">Sustainability pillar</a></li>
+  <li><a href="https://docs.aws.amazon.com/wellarchitected/latest/userguide/intro.html" target="_blank" rel="noopener">AWS Well-Architected Tool user guide</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/foundations.html">Foundations</a>
+  <a href="../learn/cost.html">Cost optimization</a>
+  <a href="../learn/security.html">Security services</a>
+  <a href="../learn/migration.html">Reliability and DR</a>
+  <a href="../exam/overview.html">Exam overview</a>
+</div>

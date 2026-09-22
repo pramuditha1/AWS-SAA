@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SQS, SNS, Kinesis · SAA-C03 Study</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Sinhala:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/docs.css">
+</head>
+<body data-root="../">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="topbar">
+    <button class="menu-btn" aria-label="Open menu">☰</button>
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">S</span>
+      SAA-C03 <span class="sub">study site</span>
+    </a>
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input id="site-search" type="search" placeholder="Search services…" autocomplete="off">
+      <div id="search-results" hidden></div>
+    </div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar"><div class="nav-group"><h2>Exam</h2><a href="../index.html">Service catalog</a><a href="../exam/overview.html">Exam overview</a><a href="../exam/domain-1-secure.html">Domain 1 · Secure 30%</a><a href="../exam/domain-2-resilient.html">Domain 2 · Resilient 26%</a><a href="../exam/domain-3-performance.html">Domain 3 · Performance 24%</a><a href="../exam/domain-4-cost.html">Domain 4 · Cost 20%</a><a href="../exam/out-of-scope.html">Out of scope</a></div>
+<div class="nav-group"><h2>Learn</h2><a href="../learn/foundations.html">Foundations</a><a href="../learn/well-architected.html">Well-Architected</a><a href="../learn/iam.html">IAM</a><a href="../learn/identity-federation.html">Cognito &amp; federation</a><a href="../learn/security.html">KMS, WAF, Shield</a><a href="../learn/specialty-security.html">Security extras</a><a href="../learn/s3.html">S3</a><a href="../learn/storage.html">EBS, EFS, FSx</a><a href="../learn/ec2.html">EC2</a><a href="../learn/elb-asg.html">Auto Scaling &amp; ELB</a><a href="../learn/vpc.html">VPC</a><a href="../learn/networking-advanced.html">Hybrid networking</a><a href="../learn/route53.html">Route 53</a><a href="../learn/cloudfront.html">CloudFront &amp; GA</a><a href="../learn/databases.html">RDS, Aurora, ElastiCache</a><a href="../learn/dynamodb.html">DynamoDB &amp; API Gateway</a><a href="../learn/specialty-databases.html">DocumentDB, Neptune</a><a class="active" href="../learn/messaging.html">SQS, SNS, Kinesis</a><a href="../learn/lambda.html">Lambda &amp; Step Functions</a><a href="../learn/integration-extras.html">AppSync, MSK, AppFlow</a><a href="../learn/monitoring.html">CloudWatch &amp; CloudTrail</a><a href="../learn/containers.html">ECS, EKS, Fargate</a><a href="../learn/migration.html">Migration &amp; DR</a><a href="../learn/analytics.html">Analytics</a><a href="../learn/governance.html">Organizations &amp; Config</a><a href="../learn/cost.html">Cost optimization</a><a href="../learn/hybrid-edge.html">Outposts &amp; Wavelength</a><a href="../learn/ml.html">Machine learning</a></div>
+<div class="nav-group"><h2>Compare</h2><a href="../compare/storage.html">Storage picker</a><a href="../compare/databases.html">Database picker</a><a href="../compare/messaging.html">Messaging picker</a><a href="../compare/compute.html">Compute picker</a><a href="../compare/networking.html">Networking picker</a><a href="../compare/dr.html">DR picker</a></div>
+<div class="nav-group"><h2>Sinhala</h2><a href="../sinhala/index.html">Sinhala notes</a></div></aside>
+    <main id="main">
+      <div class="crumb">Learn / Messaging</div>
+      <h1>Messaging — queues, topics, buses, and streams</h1>
+<div class="meta-row"><span class="pill must">Must-know</span><span class="pill domain">Domains 2 &amp; 3 · Resilient · Performance</span></div>
+<p class="lede">Messaging lets one part of your system talk to another without both being online at the same second. On the SAA exam you match a human need — buffer work, fan out news, replay a day of clicks, land data in S3, keep JMS, route SaaS events — to the AWS product whose rules already fit.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>If a web server calls a worker directly, a spike or a crashed worker breaks the user request. Decoupling with a queue or bus absorbs the spike, lets workers die and retry, and lets new subscribers appear without rewriting the producer.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p>AWS messaging is a family: <strong>SQS</strong> (queue), <strong>SNS</strong> (pub/sub topic), <strong>EventBridge</strong> (event bus with rules), <strong>Kinesis Data Streams</strong> (replayable log), <strong>Firehose</strong> (delivery into S3/analytics stores), and <strong>Amazon MQ</strong> (managed ActiveMQ/RabbitMQ for existing apps).</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>These services are <strong>Regional</strong> and Multi-AZ under the hood. You talk to Regional endpoints. Cross-account and SaaS partners usually meet you on an <strong>EventBridge</strong> bus. MQ brokers sit in your VPC subnets.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>SQS Standard vs FIFO · visibility timeout · DLQ · SNS fan-out · EventBridge content rules · Kinesis shards + replay · Firehose destinations · Amazon MQ for JMS. Those ideas cover almost every messaging stem.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>Pick the conversation shape first</h3>
+  <p><strong>Queue</strong> — one unit of work, competing consumers; whoever takes the message owns it (SQS). <strong>Fan-out</strong> — many independent subscribers each get a copy (SNS or EventBridge). <strong>Stream</strong> — a durable ordered log many apps can read and rewind (Kinesis Data Streams). <strong>Delivery pipe</strong> — land batches in S3/Redshift/OpenSearch with least ops (Firehose). <strong>Old broker protocols</strong> — JMS/AMQP/MQTT to ActiveMQ or RabbitMQ (Amazon MQ).</p>
+</div>
+
+<p>Cost-effective and least ops usually means the managed AWS-native service. MQ exists because “rewrite every JMS client before Friday” is not least ops.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  prod[Producers] --> sqs[SQS_work_queue]
+  prod --> sns[SNS_topic]
+  prod --> kds[Kinesis_Data_Streams]
+  prod --> evb[EventBridge_bus]
+  sns --> sqs2[SQS_per_team]
+  sns --> lambda[Lambda]
+  evb --> sqs3[SQS]
+  evb --> lambda2[Lambda]
+  kds --> lambda3[Many_consumers]
+  kds --> firehose[Firehose]
+  firehose --> s3[S3_Redshift_OpenSearch]
+  sqs --> workers[Competing_workers]
+  </div>
+  <p class="caption">Family map for SAA. Start from product overviews: <a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/welcome.html" target="_blank" rel="noopener">SQS</a>, <a href="https://docs.aws.amazon.com/sns/latest/dg/welcome.html" target="_blank" rel="noopener">SNS</a>, <a href="https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-what-is.html" target="_blank" rel="noopener">EventBridge</a>, <a href="https://docs.aws.amazon.com/streams/latest/dev/introduction.html" target="_blank" rel="noopener">Kinesis Data Streams</a>.</p>
+</div>
+
+<h2>SQS — a work inbox</h2>
+<p>A producer sends a message to a queue URL. A consumer calls ReceiveMessage. SQS then <strong>hides</strong> the message for the <strong>visibility timeout</strong> (default 30 seconds, max 12 hours). If the consumer deletes it in time, work is done. If the consumer crashes, the message reappears for someone else. Queue depth is a classic Auto Scaling metric.</p>
+<p><strong>Standard queues</strong> — nearly unlimited throughput, <strong>at-least-once</strong> delivery, <strong>best-effort order</strong>. Duplicates can happen; make the worker idempotent (natural key, DynamoDB condition).</p>
+<p><strong>FIFO queues</strong> — order <strong>per message group ID</strong>, and <strong>exactly-once processing</strong> inside a deduplication window. Group <code>account-123</code> keeps that account’s messages ordered; other groups run in parallel. One group ID for the whole company invents a single-threaded bottleneck.</p>
+<p>Max body size is <strong>256 KB</strong>. Bigger payloads use the <strong>Extended Client</strong> (body in S3, pointer on the queue). A <strong>dead-letter queue (DLQ)</strong> gets messages after too many receives without a delete — alarm on DLQ depth. Retention is 1 minute to 14 days (default 4 days), not a long archive.</p>
+
+<div class="table-wrap"><table>
+  <thead><tr><th></th><th>Standard SQS</th><th>FIFO SQS</th></tr></thead>
+  <tbody>
+    <tr><td>Order</td><td>Best effort</td><td>Strict per message group</td></tr>
+    <tr><td>Delivery</td><td>At-least-once; duplicates possible</td><td>Exactly-once processing (dedup window)</td></tr>
+    <tr><td>Throughput</td><td>Effectively unlimited</td><td>Lower; scale with many group IDs</td></tr>
+    <tr><td>Typical stem</td><td>Buffer workers, scale on backlog</td><td>Payments / inventory “in order, no dupes”</td></tr>
+  </tbody>
+</table></div>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  prod[Producer] --> q[SQS_queue]
+  q -->|Receive_hide| w1[Worker_A]
+  w1 -->|Delete_success| done[Done]
+  w1 -.->|Crash_before_delete| q
+  q -->|After_maxReceiveCount| dlq[DLQ]
+  </div>
+  <p class="caption">Follows the receive / visibility / delete model in <a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html" target="_blank" rel="noopener">Visibility timeout</a> and <a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html" target="_blank" rel="noopener">Dead-letter queues</a>.</p>
+</div>
+
+<h2>SNS — one publish, many subscribers</h2>
+<p>Publish to a <strong>topic</strong>. SNS pushes to each subscription: SQS, Lambda, HTTPS, email, SMS, mobile push, Firehose. That is <strong>fan-out</strong>: order-placed becomes “email customer,” “update search,” and “notify billing” without the order service knowing those three.</p>
+<p>The durable exam pattern is <strong>SNS → SQS → worker</strong> (each team gets its own queue and DLQ), not SNS → one EC2 HTTPS endpoint. <strong>Filter policies</strong> let a subscriber ignore messages it does not care about. FIFO topics pair only with FIFO queues when order + fan-out both appear.</p>
+
+<h2>EventBridge — a smart event bus</h2>
+<p>EventBridge routes events with <strong>content-based rules</strong> (match on source, detail-type, fields inside JSON <code>detail</code>). Sources include AWS services (default bus), your apps (custom bus), and <strong>SaaS partner</strong> integrations. Targets include Lambda, SQS, SNS, Step Functions, Kinesis, API destinations, and more. Archive/replay and Scheduler (cron/rate) sit beside the bus.</p>
+<p><strong>SNS vs EventBridge:</strong> both can fan out. EventBridge wins for SaaS partners, rich payload matching, archive/replay, and “corporate event bus.” SNS wins for simple pub/sub to SQS/Lambda/SMS/email.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  saas[SaaS_partner] --> bus[EventBridge_bus]
+  aws[AWS_service_events] --> bus
+  app[Your_app_PutEvents] --> bus
+  bus --> r1[Rule_status_FAILED]
+  bus --> r2[Rule_STOCK_OUT]
+  r1 --> sfn[Step_Functions]
+  r2 --> fn[Lambda]
+  </div>
+  <p class="caption">Follows the bus + rules model in <a href="https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-how-it-works.html" target="_blank" rel="noopener">How Amazon EventBridge works</a>.</p>
+</div>
+
+<h2>Kinesis Data Streams vs Firehose</h2>
+<p><strong>Kinesis Data Streams</strong> — a durable log split into <strong>shards</strong>. Producers put records (up to 1 MB). Multiple consumers can each read the same data at their own pace. You can <strong>replay</strong> within retention (24 hours default, extendable). Enhanced fan-out gives a consumer its own throughput pipe. Use for clickstream, many analytics apps, “reprocess yesterday after a bug fix.”</p>
+<p><strong>Firehose</strong> (Amazon Data Firehose) — a managed pipe that buffers and delivers to <strong>S3, Redshift, OpenSearch, Splunk, HTTP</strong>, with optional Lambda transform. You do not build a custom batcher. You do not replay to five custom apps. Near-real-time (buffer interval), not sub-second per record.</p>
+
+<div class="table-wrap"><table>
+  <thead><tr><th></th><th>Streams</th><th>Firehose</th><th>SQS</th></tr></thead>
+  <tbody>
+    <tr><td>Model</td><td>Replayable log</td><td>Load into a store</td><td>Work queue, delete on success</td></tr>
+    <tr><td>Many consumers of same data</td><td>Yes</td><td>No</td><td>No (competing workers)</td></tr>
+    <tr><td>Replay</td><td>Yes</td><td>Not the point</td><td>No after delete</td></tr>
+    <tr><td>Exam sentence</td><td>Streaming analytics + rewind</td><td>Land in S3 / Redshift / OpenSearch</td><td>Scale workers on backlog</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Amazon MQ — keep the old protocol</h2>
+<p>Managed <strong>ActiveMQ</strong> or <strong>RabbitMQ</strong> speaking JMS, AMQP, MQTT, and friends. Multi-AZ active/standby (ActiveMQ) or cluster (RabbitMQ). Use when the stem says migrate with minimal code change or “vendor requires RabbitMQ.” Green-field Lambda microservices should prefer SQS/SNS/EventBridge.</p>
+
+<h2>Use case 1 — website → workers</h2>
+<p><strong>Need:</strong> Web tier must not wait on image processing; scale workers on backlog; tolerate crashes.</p>
+<p><strong>Design:</strong> Standard SQS + Auto Scaling or Lambda event source, long polling, DLQ, idempotent worker.</p>
+<div class="mermaid">
+flowchart LR
+  web[Web_tier] --> q[SQS_standard]
+  q --> asg[Workers_ASG_or_Lambda]
+  q --> dlq[DLQ]
+</div>
+
+<h2>Use case 2 — one event, three teams</h2>
+<p><strong>Need:</strong> Order placed notifies billing, fulfillment, and a lake dump. Billing/fulfillment need per-account order and no duplicates.</p>
+<p><strong>Design:</strong> SNS FIFO (or EventBridge) → two SQS FIFO queues (group = account ID). Lake path via Firehose/S3 (at-least-once OK). Extended Client if bodies exceed 256 KB.</p>
+
+<h2>Use case 3 — telemetry with replay + lake</h2>
+<p><strong>Need:</strong> Fraud app re-reads 48 hours; dashboard must not steal fraud’s read throughput; durable copy in S3 and OpenSearch.</p>
+<p><strong>Design:</strong> Kinesis Data Streams (retention ≥ 48 h, enhanced fan-out for fraud) + Firehose to S3/OpenSearch.</p>
+<div class="mermaid">
+flowchart LR
+  devices[Producers] --> kds[Kinesis_Data_Streams]
+  kds --> fraud[Fraud_consumer_EFO]
+  kds --> dash[Dashboard_consumer]
+  kds --> fh[Firehose]
+  fh --> s3[S3]
+  fh --> os[OpenSearch]
+</div>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem language</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Decouple / backlog / competing workers</td><td>SQS</td><td>One sync call; Redis list on EC2</td></tr>
+    <tr><td>In order per customer, no dupes</td><td>SQS FIFO + group ID</td><td>Standard “we will sort later”</td></tr>
+    <tr><td>Every team must see every event</td><td>SNS or EventBridge</td><td>One SQS queue fought over by three teams</td></tr>
+    <tr><td>SaaS / content rule / archive</td><td>EventBridge</td><td>SNS-only when partner has EventBridge</td></tr>
+    <tr><td>Many consumers + replay</td><td>Kinesis Data Streams</td><td>SQS (no rewind of same message)</td></tr>
+    <tr><td>Least ops into S3/Redshift/OpenSearch</td><td>Firehose</td><td>Homegrown Streams batcher</td></tr>
+    <tr><td>Existing JMS / ActiveMQ / RabbitMQ</td><td>Amazon MQ</td><td>Forced rewrite to SQS this sprint</td></tr>
+    <tr><td>Payload &gt; 256 KB, still a queue</td><td>SQS Extended Client + S3</td><td>“Raise SQS to 10 MB”</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — fan-out, order, large payload</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Order service must notify billing, fulfillment, and a data lake. Billing and fulfillment need per-account order and no duplicates. Some documents are ~1 MB. Lake can be at-least-once. No self-managed brokers.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> One Standard SQS; three teams compete; raise message size quota to 1 MB.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Single-AZ Amazon MQ so JMS “guarantees order.”</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> Fan-out to two SQS FIFO queues (group = account ID) + Extended Client for size; lake via Firehose/S3.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> One-shard Kinesis “for global order” with three Lambdas.</div>
+  <p>A fails order, exactly-once, size, and fan-out. B adds a broker in one AZ. D forces global order you did not need. C matches each constraint with managed features.</p>
+</div>
+
+<h2>Case study 2 — Streams + Firehose</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Multi-MB/s telemetry needs (1) a fraud detector that can re-read 48 hours, (2) a dashboard that must not steal fraud’s throughput, (3) S3 + OpenSearch with no custom batcher.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Standard SQS with two Lambdas and 14-day retention as the “lake.”</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Firehose only; fraud polls S3 every five minutes.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> Kinesis Data Streams (≥48 h, enhanced fan-out for fraud) + Firehose to S3 and OpenSearch.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> EventBridge archive as the only ingest pipe + MQ to OpenSearch.</div>
+  <p>SQS cannot share one message with two independent readers or rewind after delete. Firehose alone is not a real-time dual-consumer log. C is the documented split.</p>
+</div>
+
+<h2>Case study 3 — JMS today, SaaS tomorrow</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">On-prem app speaks JMS to ActiveMQ; migrate in a month with little code change and Multi-AZ. Also receive SaaS stock events (EventBridge partner) and run Lambda only when <code>detail.type</code> is <code>STOCK_OUT</code>.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Rewrite to SQS FIFO this sprint; SaaS POSTs to an ALB; filter in every Lambda.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Amazon MQ Multi-AZ for JMS; EventBridge partner source + content rule → Lambda.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Homegrown JMS→Kinesis agent and SNS email for SaaS.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Single-AZ RabbitMQ on EC2; EventBridge only if SaaS speaks AMQP.</div>
+  <p>B uses MQ and EventBridge for the reasons each exists. A ignores the timeline and the partner integration.</p>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>Visibility timeout ≠ delay queue.</strong> Hide time must cover processing or another worker grabs the same message. Delay is “wait up to 15 minutes before first delivery.”</p>
+<p><strong>One queue is not fan-out.</strong> Competing consumers share work. Copies for every team need SNS, EventBridge, or a stream.</p>
+<p><strong>Standard SQS duplicates are normal.</strong> Fix with idempotency, not FIFO, unless the stem asked for order and exactly-once.</p>
+<p><strong>256 KB</strong> for SQS/SNS bodies on the exam’s memory — use S3 pointers or choose a stream if you needed a stream anyway.</p>
+<p><strong>Firehose is near-real-time.</strong> Sub-second Lambda processing of every record → Streams.</p>
+<p><strong>MQ ≠ “SQS with JMS paint.”</strong> Different HA, billing, and protocols. First migration step can still be MQ.</p>
+
+<div class="exam-skip"><strong class="label">Light touch on the exam</strong> Exact high-throughput FIFO quota numbers, every Firehose buffer knob, MQ engine version minutiae. Know when to pick the product.</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/welcome.html" target="_blank" rel="noopener">Amazon SQS</a></li>
+  <li><a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-queues.html" target="_blank" rel="noopener">SQS FIFO queues</a></li>
+  <li><a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html" target="_blank" rel="noopener">Visibility timeout</a></li>
+  <li><a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-s3-messages.html" target="_blank" rel="noopener">Large messages with Extended Client</a></li>
+  <li><a href="https://docs.aws.amazon.com/sns/latest/dg/welcome.html" target="_blank" rel="noopener">Amazon SNS</a></li>
+  <li><a href="https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-what-is.html" target="_blank" rel="noopener">Amazon EventBridge</a></li>
+  <li><a href="https://docs.aws.amazon.com/streams/latest/dev/introduction.html" target="_blank" rel="noopener">Kinesis Data Streams</a></li>
+  <li><a href="https://docs.aws.amazon.com/firehose/latest/dev/what-is-this-service.html" target="_blank" rel="noopener">Amazon Data Firehose</a></li>
+  <li><a href="https://docs.aws.amazon.com/amazon-mq/latest/developer-guide/welcome.html" target="_blank" rel="noopener">Amazon MQ</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/lambda.html">Lambda &amp; Step Functions</a>
+  <a href="../learn/integration-extras.html">AppSync, MSK, AppFlow</a>
+  <a href="../learn/dynamodb.html">DynamoDB &amp; API Gateway</a>
+  <a href="../compare/messaging.html">Messaging picker</a>
+  <a href="../compare/compute.html">Compute picker</a>
+</div>
+
+    </main>
+  </div>
+  <script src="../assets/js/catalog-data.js"></script>
+  <script src="../assets/js/nav.js?v=2"></script>
+  <script src="../assets/js/search.js"></script>
+  <script src="../assets/js/catalog.js"></script>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "dark",
+      securityLevel: "loose",
+      themeVariables: {
+        darkMode: true,
+        background: "#0a101c",
+        primaryColor: "#243656",
+        primaryTextColor: "#e8eef8",
+        primaryBorderColor: "#ff9900",
+        lineColor: "#9aabc4",
+        secondaryColor: "#1a2438",
+        tertiaryColor: "#121a2b",
+        nodeTextColor: "#e8eef8"
+      }
+    });
+  </script>
+</body>
+</html>

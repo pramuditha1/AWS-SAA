@@ -1,0 +1,141 @@
+<h1>Disaster recovery picker — RTO, RPO, then money</h1>
+<div class="meta-row"><span class="pill must">High-score page</span><span class="pill domain">Domain 2.2 · Reliability · DR whitepaper</span></div>
+<p class="lede">Disaster recovery questions give you two numbers and a budget. <strong>RTO</strong> is how long you may be down. <strong>RPO</strong> is how much data you may lose. Pick the cheapest strategy that still meets both. Also refuse “enable Multi-AZ” when the stem lost a whole Region — Multi-AZ is high availability inside one Region; Multi-Region is disaster recovery.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Hardware fails, AZs fail, and sometimes a whole Region fails. Backups, warm copies, and active-active stacks cost different amounts. Without RTO/RPO you cannot tell which design is “enough” versus “overkill.”</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p>AWS names four strategies in the DR whitepaper: <strong>backup and restore</strong>, <strong>pilot light</strong>, <strong>warm standby</strong>, and <strong>multi-site active/active</strong>. This picker matches RTO/RPO (and budget) to one of those four — and checks AZ vs Region blast radius.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p><strong>Multi-AZ</strong> stays inside one Region (HA). <strong>DR</strong> usually means a second Region: snapshots and AMIs, cross-Region replicas, S3 CRR, Aurora Global, DynamoDB Global Tables, plus Route 53 or Global Accelerator to cut traffic over.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>RTO · RPO · the four strategies · Multi-AZ ≠ Multi-Region · backups even when you replicate · Route 53 failover vs latency · Aurora Global / DynamoDB Global Tables. Those ideas cover almost every DR stem.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge — how to walk a stem</h2>
+
+<div class="core-box">
+  <h3>Blast radius, then numbers, then cost</h3>
+  <p>Read once: did they lose an <strong>AZ</strong> or a <strong>Region</strong>? AZ → Multi-AZ HA (ALB across AZs, RDS Multi-AZ, Regional S3). Region → one of the four DR strategies. Then match RTO/RPO. Finally pick the cheapest strategy that still clears both numbers.</p>
+</div>
+
+<p><strong>RPO</strong> is a data question: backup frequency, replication lag, or continuous replication. <strong>RTO</strong> is a compute-and-DNS question: how long to stand up infrastructure, restore, and cut Route 53. Replication without backups is not enough for ransomware or bad deploys — replication copies corruption, so you still keep point-in-time backups in the recovery Region.</p>
+
+<p><strong>The four strategies (plain English).</strong></p>
+<p><strong>Backup and restore</strong> — backups, AMIs, and IaC live in the recovery Region. On disaster you deploy, restore, point DNS. Typical RTO: hours. Cheapest. Illegal when they want tens of minutes.</p>
+<p><strong>Pilot light</strong> — core data is always on in the recovery Region (RDS cross-Region replica or Aurora Global secondary, S3 CRR, DynamoDB). App servers are tiny or off until you scale them out. Typical RTO: tens of minutes. Low bill until disaster. Usual exam answer for “low RPO, moderate RTO, small bill.”</p>
+<p><strong>Warm standby</strong> — a scaled-down but fully functional stack is already running. You scale out, not build from zero. Typical RTO: minutes. Costs more than pilot light. Full-size passive copy is “hot standby” — you pay active-active money for active/passive.</p>
+<p><strong>Multi-site active/active</strong> — both Regions serve users (Route 53 latency or Global Accelerator). Near-zero RTO from the user’s view. Most expensive. Use when users on two continents must not wait for failover.</p>
+
+<h2>Decision diagram</h2>
+<p>The AWS DR whitepaper orders strategies by recovery time and cost. The diagrams below follow that story.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  bak[Backup_and_restore] --> hours[RTO_hours]
+  bak --> cheap[Lowest_cost]
+  pilot[Pilot_light] --> tens[RTO_tens_of_minutes]
+  pilot --> core[Data_tier_always_on]
+  warm[Warm_standby] --> mins[RTO_minutes]
+  warm --> scaled[Scaled_down_full_stack]
+  active[Multi_site_active_active] --> near[RTO_near_zero]
+  active --> exp[Highest_cost]
+  </div>
+  <p class="caption">Follows the four strategies in <a href="https://docs.aws.amazon.com/whitepapers/latest/disaster-recovery-workloads-on-aws/disaster-recovery-options-in-the-cloud.html" target="_blank" rel="noopener">Disaster recovery options in the cloud</a>.</p>
+</div>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  user[Users] --> r53[Route_53]
+  r53 --> alb[ALB_Region_A]
+  alb --> ec2a[EC2_AZ1]
+  alb --> ec2b[EC2_AZ2]
+  ec2a --> rds[RDS_Multi_AZ]
+  ec2b --> rds
+  rds -.->|not_DR_for_Region_loss| az[Other_AZ_same_Region]
+  rds -->|DR| replica[Cross_Region_replica]
+  replica --> rgnB[Region_B_pilot_or_warm]
+  </div>
+  <p class="caption">HA inside a Region vs DR across Regions. Multi-AZ detail: <a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.html" target="_blank" rel="noopener">RDS Multi-AZ</a>. Failover DNS: <a href="https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover.html" target="_blank" rel="noopener">Route 53 failover</a>.</p>
+</div>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>RTO / RPO (typical)</th><th>Strategy</th><th>Always on in DR Region</th><th>Typical AWS pieces</th></tr></thead>
+  <tbody>
+    <tr><td>Hours / hours (unless PITR)</td><td>Backup and restore</td><td>Backups, AMIs, IaC</td><td>AWS Backup, S3, RDS/EBS snapshots, CloudFormation</td></tr>
+    <tr><td>Tens of minutes / minutes</td><td>Pilot light</td><td>Data + tiny core</td><td>RDS/Aurora replica, S3 CRR, DynamoDB, ASG you scale out, Route 53 failover</td></tr>
+    <tr><td>Minutes / seconds–minutes</td><td>Warm standby</td><td>Scaled-down full stack</td><td>Same as pilot, plus running app/web tiers you scale up</td></tr>
+    <tr><td>Near zero / seconds</td><td>Active-active</td><td>Full production in two Regions</td><td>Aurora Global, DynamoDB Global Tables, latency routing</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — five-minute RPO, thirty-minute RTO, small bill</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">RPO is 5 minutes. RTO is about 30 minutes. The secondary Region must not run a full-size fleet until a disaster. Budget is limited. The database is RDS PostgreSQL. Static assets are in S3.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Nightly snapshots copied to the second Region. RPO is hours, not 5 minutes.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Pilot light: RDS cross-Region read replica (or Aurora Global if they moved), S3 CRR, AMIs replicated, app Auto Scaling at zero or tiny until failover, Route 53 failover.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Warm standby at 100% capacity. Meets RTO, violates budget — that is hot standby / full-price active-passive.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> RDS Multi-AZ only. Protects an AZ, not a Region.</div>
+  <p>30 minutes is enough to scale compute if the data is already there. That is pilot light. Warm standby also meets the numbers but fails the budget / “no full-size fleet” constraint.</p>
+</div>
+
+<h2>Case study 2 — Region is fine, one AZ died</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">An e-commerce site runs EC2 behind an ALB and RDS in a single Availability Zone. Last month that AZ had a power event and the site was down for two hours. Leadership wants the next AZ fault to be almost invisible. They are not required to survive an entire Region outage this year.</p>
+  <div class="opt win"><strong class="tag">A — correct</strong> Multi-AZ HA: ASG across at least two AZs behind the ALB, and RDS Multi-AZ. Regional S3 classes already span AZs. Matches the failure they actually had.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Active-active in two Regions with DynamoDB Global Tables. Bigger problem, possible rewrite, DR money on an HA requirement.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Backup and restore to another Region. Hours of RTO is what they already suffered. Wrong failure domain.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> A single read replica in the same AZ. Same AZ, async, not HA for writes.</div>
+  <p>Read the blast radius. AZ → Multi-AZ. Region → one of the four DR strategies. Do not jump to Global Tables because they sound impressive.</p>
+</div>
+
+<h2>Case study 3 — near-zero downtime, two continents</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Users in Europe and the US must always hit a local healthy stack. RTO for a Region loss is near zero. The data model is key-value. Occasional cross-Region conflict is acceptable if last-writer wins. Cost is secondary.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Pilot light in the US with all EU users on Frankfurt until failover. EU RTO is not near zero; EU latency is wrong on a normal day.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Multi-site active/active: DynamoDB Global Tables, app stacks in both Regions, Route 53 latency routing (or Global Accelerator) with health checks.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> RDS Multi-AZ in one Region. Wrong API and wrong failure domain.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> S3 CRR only, with compute in one Region. Objects are safe; the API is still one-Region.</div>
+  <p>Active/active needs an engine that can take writes in two Regions (or a clear primary). DynamoDB Global Tables match key-value + last-writer-wins. Aurora Global is the relational version with one primary writer (secondary can be promoted).</p>
+</div>
+
+<h2>Tricky points</h2>
+<p><strong>Meet RTO and RPO first, then minimize cost.</strong> The cheapest architecture that misses RPO is still wrong.</p>
+<p><strong>Replication copies deletions and ransomware.</strong> Keep point-in-time backups in the DR Region even if you replicate. S3 Object Lock / Vault Lock appears for ransomware immutability — not as a Region-failover substitute.</p>
+<p><strong>Route 53 failover vs latency vs weighted.</strong> Failover = active/passive health-check. Latency = active/active nearest Region. Weighted = gradual or blue/green. Prefer alias to ALB/CloudFront.</p>
+<p><strong>DMS with CDC</strong> is migration / cutover, not a DR strategy by itself. <strong>Elastic Disaster Recovery (DRS)</strong> is block-level continuous replication of servers — know the name; the four whitepaper strategies are the main answers.</p>
+<p><strong>Aurora Global published targets</strong> (typical RPO &lt; 1 second, RTO &lt; 1 minute) beat a hand-rolled replica when the engine can be Aurora. Treat them as design targets AWS publishes, not absolute guarantees.</p>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/whitepapers/latest/disaster-recovery-workloads-on-aws/disaster-recovery-options-in-the-cloud.html" target="_blank" rel="noopener">Disaster recovery options in the cloud</a></li>
+  <li><a href="https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/plan-for-disaster-recovery-dr.html" target="_blank" rel="noopener">Reliability Pillar — plan for disaster recovery</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html" target="_blank" rel="noopener">S3 Replication (SRR / CRR)</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html" target="_blank" rel="noopener">Aurora Global Database</a></li>
+  <li><a href="https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover.html" target="_blank" rel="noopener">Route 53 failover routing</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/migration.html">Migration and DR chapter</a>
+  <a href="../learn/route53.html">Route 53</a>
+  <a href="../learn/databases.html">Aurora Global</a>
+  <a href="../compare/databases.html">Database picker</a>
+</div>

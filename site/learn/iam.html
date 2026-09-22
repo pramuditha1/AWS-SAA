@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IAM · SAA-C03 Study</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Sinhala:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/docs.css">
+</head>
+<body data-root="../">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="topbar">
+    <button class="menu-btn" aria-label="Open menu">☰</button>
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">S</span>
+      SAA-C03 <span class="sub">study site</span>
+    </a>
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input id="site-search" type="search" placeholder="Search services…" autocomplete="off">
+      <div id="search-results" hidden></div>
+    </div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar"><div class="nav-group"><h2>Exam</h2><a href="../index.html">Service catalog</a><a href="../exam/overview.html">Exam overview</a><a href="../exam/domain-1-secure.html">Domain 1 · Secure 30%</a><a href="../exam/domain-2-resilient.html">Domain 2 · Resilient 26%</a><a href="../exam/domain-3-performance.html">Domain 3 · Performance 24%</a><a href="../exam/domain-4-cost.html">Domain 4 · Cost 20%</a><a href="../exam/out-of-scope.html">Out of scope</a></div>
+<div class="nav-group"><h2>Learn</h2><a href="../learn/foundations.html">Foundations</a><a href="../learn/well-architected.html">Well-Architected</a><a class="active" href="../learn/iam.html">IAM</a><a href="../learn/identity-federation.html">Cognito &amp; federation</a><a href="../learn/security.html">KMS, WAF, Shield</a><a href="../learn/specialty-security.html">Security extras</a><a href="../learn/s3.html">S3</a><a href="../learn/storage.html">EBS, EFS, FSx</a><a href="../learn/ec2.html">EC2</a><a href="../learn/elb-asg.html">Auto Scaling &amp; ELB</a><a href="../learn/vpc.html">VPC</a><a href="../learn/networking-advanced.html">Hybrid networking</a><a href="../learn/route53.html">Route 53</a><a href="../learn/cloudfront.html">CloudFront &amp; GA</a><a href="../learn/databases.html">RDS, Aurora, ElastiCache</a><a href="../learn/dynamodb.html">DynamoDB &amp; API Gateway</a><a href="../learn/specialty-databases.html">DocumentDB, Neptune</a><a href="../learn/messaging.html">SQS, SNS, Kinesis</a><a href="../learn/lambda.html">Lambda &amp; Step Functions</a><a href="../learn/integration-extras.html">AppSync, MSK, AppFlow</a><a href="../learn/monitoring.html">CloudWatch &amp; CloudTrail</a><a href="../learn/containers.html">ECS, EKS, Fargate</a><a href="../learn/migration.html">Migration &amp; DR</a><a href="../learn/analytics.html">Analytics</a><a href="../learn/governance.html">Organizations &amp; Config</a><a href="../learn/cost.html">Cost optimization</a><a href="../learn/hybrid-edge.html">Outposts &amp; Wavelength</a><a href="../learn/ml.html">Machine learning</a></div>
+<div class="nav-group"><h2>Compare</h2><a href="../compare/storage.html">Storage picker</a><a href="../compare/databases.html">Database picker</a><a href="../compare/messaging.html">Messaging picker</a><a href="../compare/compute.html">Compute picker</a><a href="../compare/networking.html">Networking picker</a><a href="../compare/dr.html">DR picker</a></div>
+<div class="nav-group"><h2>Sinhala</h2><a href="../sinhala/index.html">Sinhala notes</a></div></aside>
+    <main id="main">
+      <div class="crumb">Learn / IAM</div>
+      <h1>IAM — who can do what, and for how long</h1>
+<div class="meta-row"><span class="pill must">Must-know</span><span class="pill domain">Domain 1 · Tasks 1.1–1.2 · ~30% of the exam</span></div>
+<p class="lede">IAM is AWS’s identity system. It answers two questions: who are you, and what may you do? On the exam you pick the right identity (user, role, or federation), the right kind of policy, and the smallest blast radius that still gets the job done.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Cloud accounts hold real data and real money. You need a lock on every API call: only the right person or app, only the actions they need, only for as long as they need them.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p><strong>IAM</strong> (Identity and Access Management) is a free, global AWS service for <strong>authentication</strong> (prove who you are) and <strong>authorization</strong> (decide what you may do). You create identities and attach <strong>policies</strong> — JSON documents that allow or deny actions on resources.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>IAM is <strong>global</strong>. A user or role you create is available in every Region. The resources those identities call (an S3 bucket, a KMS key) are often Regional — the identity is still the same.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>Root user · IAM user / group / role · identity vs resource policy · trust policy · permission boundary · Organizations SCP · STS temporary credentials. Those ideas cover almost every SAA IAM question.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>Start with the root user — then stop using it</h3>
+  <p>Every AWS account begins with a <strong>root user</strong>: the email and password that can do everything, including recover the account. AWS tells you not to use root for daily work. Enable MFA on root, do not create root access keys, and do everyday admin with IAM identities instead. If a stem says “everyday administration” and an answer still uses root, that answer is wrong.</p>
+</div>
+
+<p><strong>Principal</strong> — the “who” making a request: a user, a role session, a federated identity, or (sometimes) another AWS service.</p>
+<p><strong>Policy</strong> — a document of Allow and Deny statements. Policies attach to identities, or they live on resources (bucket policy, key policy), or they sit at the organization as guardrails.</p>
+<p><strong>STS (Security Token Service)</strong> — the API that hands out <strong>temporary credentials</strong> when you assume a role. Temporary means they expire. That is why roles beat long-lived access keys on the exam.</p>
+
+<h2>How IAM decides allow or deny (from AWS docs)</h2>
+<p>A principal sends a request: identity, action, resource, and optional conditions (source IP, MFA, time, tags). IAM evaluates every applicable policy. AWS’s evaluation logic is the story the exam expects you to reason about.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  req[API_request] --> deny{{Any_explicit_Deny}}
+  deny -->|yes| stop[Denied]
+  deny -->|no| scp{{SCP_allows_if_in_Org}}
+  scp -->|no| stop
+  scp -->|yes| bound{{Permission_boundary_allows}}
+  bound -->|no| stop
+  bound -->|yes| allow{{Identity_or_resource_Allow}}
+  allow -->|yes| ok[Allowed]
+  allow -->|no| impl[Implicit_deny]
+  </div>
+  <p class="caption">Follows <a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html" target="_blank" rel="noopener">IAM policy evaluation logic</a>. Open that page for AWS’s official diagram and the full decision tree.</p>
+</div>
+
+<ol>
+  <li><strong>Explicit deny</strong> anywhere (identity policy, resource policy, SCP, session policy, permission boundary) — request denied. This always wins, even over <code>AdministratorAccess</code>.</li>
+  <li><strong>Organizations SCP</strong> — if the account is in an organization, the SCP must allow the action or evaluation stops. SCPs never grant access by themselves.</li>
+  <li><strong>Permission boundary</strong> — if one is attached, it caps the maximum permissions. The identity policy cannot exceed it.</li>
+  <li><strong>Identity-based allow</strong> or <strong>resource-based allow</strong> — at least one allow is required.</li>
+  <li>Otherwise <strong>implicit deny</strong>. New IAM users start with no permissions until you attach a policy. That is the default, not a bug.</li>
+</ol>
+<p>See <a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/introduction.html" target="_blank" rel="noopener">What is IAM?</a></p>
+
+<h2>Identities — pick the right principal</h2>
+<p>The exam’s favorite correct answer for apps and cross-account access is a <strong>role</strong>: temporary credentials via STS, no standing secret on disk.</p>
+
+<div class="table-wrap"><table>
+  <thead><tr><th>Principal</th><th>Credentials</th><th>When it is the answer</th><th>When it is a distractor</th></tr></thead>
+  <tbody>
+    <tr><td>Root user</td><td>Email + password; never access keys</td><td>Account recovery, some billing, S3 MFA Delete enablement</td><td>Any daily admin task</td></tr>
+    <tr><td>IAM user</td><td>Long-term password and/or access keys</td><td>A human in one account with a console login; rare scripts that cannot assume a role</td><td>EC2, Lambda, or any compute calling AWS APIs</td></tr>
+    <tr><td>IAM group</td><td>None — only a permission bundle</td><td>Same permissions for many users; groups cannot nest</td><td>Assigning a group to an EC2 instance</td></tr>
+    <tr><td>IAM role</td><td>Temporary via STS</td><td>Instance profile, Lambda execution, cross-account, federation</td><td>When the stem wants a permanent human login (then user + group)</td></tr>
+    <tr><td>Federated identity</td><td>SAML/OIDC token → role</td><td>Workforce SSO, mobile/web users via Cognito</td><td>Creating an IAM user per mobile customer</td></tr>
+  </tbody>
+</table></div>
+
+<p>For EC2, attach an <strong>instance profile</strong> (a container for one role). The instance metadata service hands out rotating credentials. If you see “never store credentials on the instance,” the answer is a role — not access keys in user data.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+sequenceDiagram
+  participant App
+  participant IMDS
+  participant STS
+  participant S3
+  App->>IMDS: GET role credentials
+  IMDS->>STS: Assume instance profile role
+  STS-->>App: AccessKey_Secret_Token
+  App->>S3: GetObject with temporary creds
+  </div>
+  <p class="caption">Matches the instance-profile pattern in <a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2.html" target="_blank" rel="noopener">Using an IAM role to grant permissions to applications running on EC2</a>.</p>
+</div>
+
+<h2>Policy types (explained simply)</h2>
+<p><strong>Identity-based policies</strong> attach to a user, group, or role. They say “this identity may call these actions on these resources.” Prefer customer-managed policies you can reuse and edit. Inline policies stick to one identity.</p>
+<p><strong>Resource-based policies</strong> live on the resource (S3 bucket policy, KMS key policy, SQS queue policy, Lambda resource policy). They are how you grant another account access without creating a user in your account. Not every service supports them; when one does not, use a role whose <strong>trust policy</strong> names the other account.</p>
+<p><strong>Permission boundaries</strong> do not grant anything. They cap what an identity can ever receive. Classic story: let a developer create roles for their app, but force every new role to carry a boundary so they cannot escalate to <code>AdministratorAccess</code>.</p>
+<p><strong>Service control policies (SCPs)</strong> attach to the organization root, OUs, or member accounts. They are account-wide guardrails (“no one in this OU may disable CloudTrail”). SCPs do not apply to the management account. A member admin with AdministratorAccess still cannot do what the SCP denies.</p>
+<p><strong>Session policies</strong> shrink a role further for one STS session. Think of them as a temporary filter on top of the role.</p>
+
+<h2>Trust policy vs permissions policy</h2>
+<p>Every role has two documents. The <strong>trust policy</strong> answers “who may call <code>sts:AssumeRole</code>?” The <strong>permissions policy</strong> answers “once assumed, what may they do?” Exam distractors swap these. If Account B cannot assume a role in Account A, the defect is almost always the trust policy in A — not the S3 permissions on the role.</p>
+<p>For EC2 the trust principal is <code>ec2.amazonaws.com</code>. For Lambda, <code>lambda.amazonaws.com</code>. For a user in Account B, the principal is that user’s or account’s ARN. Get the trust wrong and STS returns AccessDenied even if permissions are <code>*:*</code>.</p>
+
+<h2>Use case 1 — app on EC2 reads S3</h2>
+<p><strong>Need:</strong> Photo-processing instances read from <code>incoming/</code> and write to <code>processed/</code>. No long-term keys. No delete.</p>
+<p><strong>Design:</strong> Instance profile role with a customer-managed policy: <code>s3:GetObject</code> on the incoming prefix, <code>s3:PutObject</code> on the processed prefix. Not <code>AmazonS3FullAccess</code>.</p>
+<div class="mermaid">
+flowchart LR
+  ec2[EC2_fleet] --> role[Instance_profile_role]
+  role --> s3in[S3_incoming_Get]
+  role --> s3out[S3_processed_Put]
+</div>
+
+<h2>Use case 2 — cross-account without duplicating users</h2>
+<p><strong>Need:</strong> Analytics engineers in Account Analytics query a data-lake bucket in Account Lake. Lake will not create IAM users for them.</p>
+<p><strong>Design:</strong> Role in Lake that trusts Analytics (or specific role ARNs) and allows list/get on the bucket. Grant engineers <code>sts:AssumeRole</code> in Analytics. Optional ExternalId for third-party assume-role.</p>
+<div class="mermaid">
+flowchart LR
+  eng[Engineer_in_Analytics] --> assume[sts_AssumeRole]
+  assume --> role[Role_in_Lake]
+  role --> bucket[Lake_S3_bucket]
+</div>
+<p>Detail: <a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html" target="_blank" rel="noopener">IAM roles</a>.</p>
+
+<h2>Use case 3 — company-wide logging nobody can turn off</h2>
+<p><strong>Need:</strong> Forty accounts in Organizations. A sandbox admin must not be able to stop CloudTrail, even with AdministratorAccess.</p>
+<p><strong>Design:</strong> SCP on the OU (and org) that denies stop/delete trail actions. Enable CloudTrail from the management or delegated admin account. Identity policies in the member account can be removed by a local admin; SCPs cannot.</p>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem language</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>App on EC2 / Lambda needs AWS APIs</td><td>Role (instance profile / execution role)</td><td>Access keys on the instance</td></tr>
+    <tr><td>Temporary access / contractor / cross-account</td><td>AssumeRole + optional MFA / ExternalId</td><td>Shared IAM user or root password</td></tr>
+    <tr><td>Every account, including future ones, cannot do X</td><td>Organizations SCP</td><td>Identity deny on each user</td></tr>
+    <tr><td>Developer may create roles but not escalate</td><td>Permission boundary</td><td>SCP alone (too coarse for one person)</td></tr>
+    <tr><td>Mobile app users call DynamoDB</td><td>Cognito identity pool → IAM role</td><td>IAM user per customer</td></tr>
+    <tr><td>Find unused access keys</td><td>Credential report + Access Advisor</td><td>CloudTrail as the first tool for “who still has keys”</td></tr>
+  </tbody>
+</table></div>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  q{{What does the question want}}
+  q -->|compute needs AWS APIs| role[Role_not_keys]
+  q -->|another account needs access| xa[AssumeRole_or_resource_policy]
+  q -->|admin cannot undo the guardrail| scp[Organizations_SCP]
+  q -->|cap one identity forever| pb[Permission_boundary]
+  q -->|deny beats allow| ed[Explicit_Deny]
+  </div>
+  <p class="caption">Decision view for SAA. Evaluation details: <a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html" target="_blank" rel="noopener">Policy evaluation logic</a>.</p>
+</div>
+
+<h2>Case study 1 — least privilege on compute</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A photo-processing fleet on EC2 must read objects from <code>incoming/</code> and write results to <code>processed/</code> in the same bucket. Security wants no long-term keys on the instances, and instances must not delete objects. Which design meets the requirement?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Create an IAM user, put access keys in user data, attach <code>AmazonS3FullAccess</code>.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Attach <code>AmazonS3FullAccess</code> to an instance profile role.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> Instance profile role with a customer-managed policy: <code>s3:GetObject</code> on <code>…/incoming/*</code> and <code>s3:PutObject</code> on <code>…/processed/*</code>.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Make the bucket public and use anonymous HTTPS.</div>
+  <p>A stores long-term keys. B uses a role (good) but FullAccess can delete — it fails least privilege. D is a data leak. C is the documented pattern: role, narrow ARNs, narrow actions.</p>
+</div>
+
+<h2>Case study 2 — cross-account without duplicating users</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Analytics in Account Analytics must run Athena over a data-lake bucket in Account Lake. Lake will not create IAM users for the analytics engineers. Engineers already have IAM users in Analytics. The solution must be auditable in CloudTrail in both accounts.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Share the Lake root password with the analytics lead.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Role in Lake that trusts Analytics and allows <code>s3:GetObject</code> / <code>s3:ListBucket</code>. Grant engineers <code>sts:AssumeRole</code>. Optionally add ExternalId.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Nightly <code>aws s3 sync</code> into Analytics with a stored access key.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Disable Block Public Access and gate by a long random prefix.</div>
+  <p>B uses AssumeRole so both accounts see the session in CloudTrail. C duplicates data and reintroduces keys. D is not authentication.</p>
+</div>
+
+<h2>Case study 3 — guardrails a member admin cannot remove</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Forty accounts in AWS Organizations. A developer in a sandbox attached AdministratorAccess and turned off CloudTrail. Leadership wants every account, including future ones, unable to stop logging — even if someone is a local administrator.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Document “do not disable CloudTrail” in a wiki.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Attach a deny for <code>cloudtrail:StopLogging</code> to each IAM user in every account.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> SCP on the sandbox OU (and org) denying stop/delete trail actions; enable CloudTrail from management or delegated admin.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Permission boundary on the one developer who caused the incident.</div>
+  <p>Identity policies in a member account can be removed by that account’s admin. SCPs cannot. B misses new users and roles. D is too narrow.</p>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>Explicit deny always wins.</strong> One Deny in any applicable policy beats every Allow.</p>
+<p><strong>Groups cannot contain groups.</strong> Need hierarchy across accounts? That is Organizations OUs — not nested IAM groups.</p>
+<p><strong>Roles do not have access keys.</strong> If the question is “rotate credentials for an app on EC2,” move to a role — do not create a second access key.</p>
+<p><strong>KMS is special.</strong> For KMS, the key policy must allow the caller; an identity policy alone is not enough. See the KMS / security chapter.</p>
+<p><strong>MFA Delete</strong> on S3 versioning is enabled by the root user, not by a normal IAM admin. One of the few remaining root-only tasks.</p>
+<p><strong>Three different “find unused” tools:</strong> Access Analyzer (resources shared outside the account), credential report (users and key ages), Access Advisor (last-used services for right-sizing). Do not mix them.</p>
+<p><strong>IAM is eventually consistent.</strong> A brand-new role can briefly fail AssumeRole. More often the intended answer is a bad trust policy or missing <code>sts:AssumeRole</code>.</p>
+
+<div class="exam-tip"><strong class="label">Exam habit</strong> When two answers both “work,” keep the one that (1) uses a role instead of keys, (2) names the smallest resource ARN, (3) cannot be undone by a member-account admin if the stem asked for a company-wide control.</div>
+
+<div class="exam-skip"><strong class="label">Light touch on the exam</strong> Exact JSON syntax, GetFederationToken vs GetSessionToken API details, IAM Identity Center console clicks. Know “temporary credentials via STS / a role”; do not deep-dive the STS API catalog.</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/introduction.html" target="_blank" rel="noopener">What is IAM?</a></li>
+  <li><a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html" target="_blank" rel="noopener">Policy evaluation logic</a></li>
+  <li><a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html" target="_blank" rel="noopener">IAM roles</a></li>
+  <li><a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2.html" target="_blank" rel="noopener">Roles for EC2 (instance profiles)</a></li>
+  <li><a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html" target="_blank" rel="noopener">Temporary security credentials (STS)</a></li>
+  <li><a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_boundaries.html" target="_blank" rel="noopener">Permissions boundaries</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/identity-federation.html">Cognito &amp; Identity Center</a>
+  <a href="../learn/governance.html">Organizations &amp; SCPs</a>
+  <a href="../learn/security.html">KMS key policies</a>
+  <a href="../learn/s3.html">S3 bucket policies</a>
+</div>
+
+    </main>
+  </div>
+  <script src="../assets/js/catalog-data.js"></script>
+  <script src="../assets/js/nav.js?v=2"></script>
+  <script src="../assets/js/search.js"></script>
+  <script src="../assets/js/catalog.js"></script>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "dark",
+      securityLevel: "loose",
+      themeVariables: {
+        darkMode: true,
+        background: "#0a101c",
+        primaryColor: "#243656",
+        primaryTextColor: "#e8eef8",
+        primaryBorderColor: "#ff9900",
+        lineColor: "#9aabc4",
+        secondaryColor: "#1a2438",
+        tertiaryColor: "#121a2b",
+        nodeTextColor: "#e8eef8"
+      }
+    });
+  </script>
+</body>
+</html>

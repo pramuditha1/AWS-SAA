@@ -1,0 +1,138 @@
+<h1>Governance — Organizations, Config, CloudFormation, Systems Manager</h1>
+<div class="meta-row"><span class="pill must">Must-know</span><span class="pill domain">Domain 1 · multi-account guardrails</span></div>
+<p class="lede">One AWS account does not scale for a company. <strong>Organizations</strong> groups accounts and applies <strong>SCPs</strong> as permission ceilings. <strong>Config</strong> records what exists and whether it complies. <strong>CloudFormation</strong> builds infrastructure as code. <strong>Systems Manager</strong> patches and remotes into instances safely. Together they are how you govern at scale.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Teams want freedom. Security wants “no one turns off CloudTrail” and “no unapproved Regions.” Auditors want proof. Manual clicks in fifty accounts will fail.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p><strong>AWS Organizations</strong> + SCPs + consolidated billing. <strong>Control Tower</strong> for a guided landing zone. <strong>Config</strong> for inventory and rules. <strong>CloudFormation / StackSets</strong> for IaC. <strong>Systems Manager</strong> (Session Manager, Patch Manager, Parameter Store). <strong>Service Catalog</strong> for approved products.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>Organizations is <strong>global</strong> across your estate. Config recorders and CloudFormation stacks are <strong>Regional</strong> (StackSets fan out). SSM manages instances wherever they run (including hybrid).</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>SCP deny vs IAM allow · management account exception · Config rules · StackSets · Session Manager (no SSH bastion) · Parameter Store vs Secrets Manager. Those dominate SAA governance stems.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>SCPs are guardrails, not grants</h3>
+  <p>A <strong>Service Control Policy</strong> sets the maximum permissions for member accounts and OUs. It never grants access by itself. IAM still must allow the action. SCPs do <strong>not</strong> restrict the management (payer) account the same way — a classic exam fact.</p>
+</div>
+
+<p><strong>OU (organizational unit)</strong> — folder of accounts (Prod, Sandbox, Security).</p>
+<p><strong>Control Tower</strong> — automated landing zone with preventive (SCP) and detective (Config) guardrails plus Account Factory.</p>
+<p><strong>Config rule</strong> — continuous check (for example “S3 buckets must be encrypted”). Can flag or trigger remediation.</p>
+<p><strong>Stack / StackSet</strong> — one template’s resources; StackSet deploys across accounts/Regions.</p>
+
+<h2>How multi-account guardrails stack</h2>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  root[Organization_root] --> ou[OUs]
+  ou --> acct[Member_accounts]
+  scp[SCPs] --> ou
+  scp --> acct
+  iam[IAM_policies] --> user[Users_roles_in_account]
+  cfg[Config_rules] --> acct
+  </div>
+  <p class="caption">SCP + IAM evaluation idea from <a href="https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_scps.html" target="_blank" rel="noopener">Service control policies (SCPs)</a>. Both must allow.</p>
+</div>
+
+<h2>CloudFormation and Systems Manager</h2>
+<p><strong>CloudFormation</strong> is declarative IaC (YAML/JSON). Change sets preview updates; drift detection finds manual edits. Prefer it (or CDK that synthesizes it) when the stem wants repeatable infrastructure.</p>
+<p><strong>Session Manager</strong> gives shell access through IAM and SSM Agent — no inbound SSH, no bastion host required. <strong>Patch Manager</strong> baselines OS patches. <strong>Parameter Store</strong> holds config (Secrets Manager when rotation/dynamic secrets dominate).</p>
+
+<div class="exam-tip"><strong class="label">Remember</strong> “Deny a service org-wide” → SCP. “Who can call APIs day to day” → IAM. “Is this bucket still public?” → Config. “SSH without opening port 22” → Session Manager.</div>
+
+<h2>Use case 1 — block risky Regions</h2>
+<p><strong>Need:</strong> Member accounts must not launch resources outside approved Regions.</p>
+<p><strong>Design:</strong> SCP deny on non-approved Regions attached to OUs. IAM alone is not enough if admins can widen IAM.</p>
+
+<h2>Use case 2 — compliant inventory</h2>
+<p><strong>Need:</strong> Continuously detect unencrypted EBS volumes and alert.</p>
+<p><strong>Design:</strong> AWS Config managed rule + SNS/EventBridge. Optional automatic remediation document.</p>
+
+<h2>Use case 3 — same baseline in 30 accounts</h2>
+<p><strong>Need:</strong> Deploy a security IAM role and Config recorder everywhere.</p>
+<p><strong>Design:</strong> CloudFormation StackSets from the delegated admin/management account.</p>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem language</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Central multi-account + billing</td><td>Organizations</td><td>One shared IAM user everywhere</td></tr>
+    <tr><td>Hard ceiling on what accounts may do</td><td>SCP</td><td>IAM policy alone in each account</td></tr>
+    <tr><td>Guided landing zone / Account Factory</td><td>Control Tower</td><td>Hand-built org with no guardrails story</td></tr>
+    <tr><td>Record configuration + compliance rules</td><td>Config</td><td>CloudTrail alone (that is API who/what)</td></tr>
+    <tr><td>Repeatable infrastructure</td><td>CloudFormation / StackSets</td><td>ClickOps only</td></tr>
+    <tr><td>Shell access without SSH/bastion</td><td>Session Manager</td><td>0.0.0.0/0 on port 22</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — SCP vs IAM</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Security must ensure no member account can disable CloudTrail, even if an account admin is AdministratorAccess.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Ask every admin to promise not to. </div>
+  <div class="opt win"><strong class="tag">B — correct</strong> SCP that denies <code>cloudtrail:StopLogging</code> / delete trail actions on member OUs.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Only a Config rule — detects after the fact unless combined with prevention.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> SCP on the management account expecting it to behave like member accounts.</div>
+</div>
+
+<h2>Case study 2 — Config vs CloudTrail</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">You must list every security group that allows 0.0.0.0/0 on port 22 right now and alert on new ones.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> CloudTrail alone — great for who changed it, weak as continuous inventory query.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> AWS Config rules on restricted SSH, SNS on NON_COMPLIANT.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Only Cost Explorer.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> SCP that grants Detective.</div>
+</div>
+
+<h2>Case study 3 — Session Manager</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Operators need interactive shells on private EC2. No inbound SSH from the internet. Audit who did what.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Public bastion with wide SSH.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> SSM Session Manager + instance profile + CloudTrail/Session logging.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Disable all access forever.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Put SSH keys in a public S3 bucket.</div>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>SCP + IAM both required.</strong> Allow in IAM but deny in SCP → denied. Allow in SCP but no IAM → denied.</p>
+<p><strong>Config ≠ CloudTrail.</strong> Config = “what is the resource state / compliance.” CloudTrail = “which API call happened.”</p>
+<p><strong>Parameter Store vs Secrets Manager.</strong> Config values and simple secrets → Parameter Store (Advanced/standard tiers). Automatic rotation and external secret engines → Secrets Manager (also fine for many secrets stems).</p>
+<p><strong>Trusted Advisor / Compute Optimizer</strong> — advisory checks; not a replacement for SCPs.</p>
+
+<div class="exam-skip"><strong class="label">Light touch on the exam</strong> Full Control Tower guardrail catalog, CloudFormation intrinsic function encyclopedia, SSM document authoring.</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/organizations/latest/userguide/orgs_introduction.html" target="_blank" rel="noopener">What is AWS Organizations?</a></li>
+  <li><a href="https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_scps.html" target="_blank" rel="noopener">Service control policies</a></li>
+  <li><a href="https://docs.aws.amazon.com/config/latest/developerguide/WhatIsConfig.html" target="_blank" rel="noopener">What is AWS Config?</a></li>
+  <li><a href="https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/Welcome.html" target="_blank" rel="noopener">What is AWS CloudFormation?</a></li>
+  <li><a href="https://docs.aws.amazon.com/systems-manager/latest/userguide/what-is-systems-manager.html" target="_blank" rel="noopener">What is AWS Systems Manager?</a></li>
+  <li><a href="https://docs.aws.amazon.com/controltower/latest/userguide/what-is-control-tower.html" target="_blank" rel="noopener">What is AWS Control Tower?</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/iam.html">IAM policies</a>
+  <a href="../learn/monitoring.html">CloudTrail and Config’s cousin</a>
+  <a href="../learn/specialty-security.html">RAM and Artifact</a>
+  <a href="../learn/cost.html">Consolidated billing</a>
+</div>

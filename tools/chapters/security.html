@@ -1,0 +1,202 @@
+<h1>KMS, WAF, Shield, and detective security services</h1>
+<div class="meta-row"><span class="pill must">Must-know</span><span class="pill domain">Domain 1 · Tasks 1.2–1.3 · 30% of the exam</span></div>
+<p class="lede">A large part of Domain 1 is not IAM. It is how you encrypt data, how you stop Layer-7 abuse and DDoS, how you store rotating secrets, and how you detect trouble after it starts. This chapter teaches those controls as simple jobs: prevent, detect, and keep secrets safe.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Data leaks, SQL injection, floods of traffic, and leaked database passwords are everyday risks. You need managed tools so every team does not invent its own crypto and firewall.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p><strong>KMS</strong> manages encryption keys. <strong>ACM</strong> issues TLS certificates for AWS front doors. <strong>WAF</strong> filters bad HTTP. <strong>Shield</strong> mitigates DDoS. <strong>GuardDuty / Inspector / Macie / Security Hub</strong> detect and aggregate findings. <strong>Secrets Manager</strong> and <strong>Parameter Store</strong> hold secrets and config.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>KMS keys are <strong>regional</strong>. WAF attaches to CloudFront (global edge), ALB, API Gateway, or AppSync. Shield Standard is automatic on supported services. Detective services run in your accounts and feed Security Hub, often from an Organizations delegated admin.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>Envelope encryption · CMK vs AWS managed vs AWS owned · WAF vs Shield · GuardDuty vs Inspector vs Macie · Secrets Manager vs Parameter Store · Firewall Manager for org-wide policy. Those forks decide most stems.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>Preventive vs detective</h3>
+  <p><strong>Preventive</strong> controls stop a class of attack: KMS/ACM for confidentiality, WAF for SQLi/XSS, Shield for volumetric DDoS, private subnets and security groups for network exposure. <strong>Detective</strong> controls tell you something already looks wrong: GuardDuty, Inspector, Macie, Security Hub. You usually need both.</p>
+</div>
+
+<p><strong>Envelope encryption</strong> — encrypt big data with a short-lived data key; encrypt that data key with a KMS key. KMS’s direct Encrypt API only accepts about <strong>4 KB</strong> of plaintext, so bulk data never goes to KMS as one blob.</p>
+<p><strong>Customer managed key (CMK)</strong> — you create it, you set the key policy, you can share and rotate on your terms. Exam stems that need audit and revoke usually want a CMK (SSE-KMS).</p>
+<p><strong>Web ACL</strong> — the WAF rule set you attach to a supported front door.</p>
+<p><strong>Shield Standard</strong> — free, automatic Layer 3/4 DDoS protection. <strong>Shield Advanced</strong> — paid; DRT help and cost protection during large attacks.</p>
+
+<h2>How envelope encryption works (from AWS docs)</h2>
+<p>AWS documents a generate-data-key pattern: ask KMS for a data key, encrypt data locally, store the encrypted data key with the ciphertext, later ask KMS to unwrap the data key.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+sequenceDiagram
+  participant App
+  participant KMS
+  participant Disk
+  App->>KMS: GenerateDataKey
+  KMS-->>App: PlaintextDEK_and_EncryptedDEK
+  App->>Disk: Write ciphertext plus EncryptedDEK
+  App->>KMS: Decrypt EncryptedDEK
+  KMS-->>App: PlaintextDEK
+  App->>App: Decrypt data locally
+  </div>
+  <p class="caption">Follows <a href="https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html#enveloping" target="_blank" rel="noopener">KMS envelope encryption</a>. S3/EBS/RDS SSE-KMS do this dance for you when you enable it.</p>
+</div>
+
+<div class="table-wrap"><table>
+  <thead><tr><th>Key kind</th><th>Who owns it</th><th>When it is the answer</th></tr></thead>
+  <tbody>
+    <tr><td>Customer managed (CMK)</td><td>You — key policy, sharing, rotation options</td><td>Audit per key, revoke, cross-account decrypt</td></tr>
+    <tr><td>AWS managed (<code>aws/s3</code>, …)</td><td>AWS creates in your account</td><td>KMS in CloudTrail without a custom policy</td></tr>
+    <tr><td>AWS owned</td><td>AWS across many accounts</td><td>SSE-S3 default; no key-level audit you control</td></tr>
+  </tbody>
+</table></div>
+
+<p>A KMS <strong>key policy</strong> is required. An IAM identity policy alone is not enough unless the key policy allows the caller (or delegates to IAM). Keys and ciphertext are regional unless you use multi-Region keys.</p>
+<p><strong>CloudHSM</strong> is for single-tenant HSM or PKCS#11 needs. Do not pick it for ordinary SSE.</p>
+
+<div class="exam-tip"><strong class="label">Remember</strong> Identity policy + missing key-policy allow = Decrypt fails. Same Region matters unless you planned multi-Region keys.</div>
+
+<h2>ACM — TLS certificates for AWS front doors</h2>
+<p>ACM issues and renews public certificates for names you prove you own (DNS validation is common). Attach them to CloudFront, ALB, NLB TLS listeners, API Gateway custom domains. You do not download an ACM-issued public private key onto EC2. <strong>CloudFront certificates must be in <code>us-east-1</code>.</strong> ALB certificates live in the load balancer’s Region.</p>
+
+<h2>WAF and Shield — different layers</h2>
+<p><strong>WAF</strong> inspects HTTP/HTTPS (Layer 7): SQLi, XSS, rate limits, geo, IP sets, managed rule groups. Attach to CloudFront, ALB, API Gateway, or AppSync — <strong>not</strong> to an NLB alone.</p>
+<p><strong>Shield Standard</strong> is always on for common L3/L4 DDoS on supported services (especially CloudFront, ALB, Route 53). No ticket to enable. <strong>Shield Advanced</strong> adds DRT, richer telemetry, and cost protection — not SQLi rules (that is still WAF).</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  user[Client] --> cf[CloudFront]
+  cf --> waf[WAF_WebACL]
+  shield[Shield_Standard] --> cf
+  shield --> alb[ALB]
+  waf --> alb
+  alb --> app[App]
+  app --> kms[KMS]
+  trail[CloudTrail_Flow_DNS] --> gd[GuardDuty]
+  gd --> hub[SecurityHub]
+  </div>
+  <p class="caption">Layering matches <a href="https://docs.aws.amazon.com/waf/latest/developerguide/waf-chapter.html" target="_blank" rel="noopener">AWS WAF</a> and <a href="https://docs.aws.amazon.com/waf/latest/developerguide/shield-chapter.html" target="_blank" rel="noopener">AWS Shield</a> placement on edge and load balancers.</p>
+</div>
+
+<div class="table-wrap"><table>
+  <thead><tr><th>Threat</th><th>First control</th><th>Not this</th></tr></thead>
+  <tbody>
+    <tr><td>SQLi / XSS / scrapers / geo block</td><td>WAF</td><td>Security groups alone; Shield alone</td></tr>
+    <tr><td>Common volumetric DDoS, no extra spend</td><td>Shield Standard + CF/ALB/Route 53</td><td>A ticket to “turn on Standard”</td></tr>
+    <tr><td>Large DDoS, DRT, cost protection</td><td>Shield Advanced</td><td>WAF rate rule as the only control</td></tr>
+    <tr><td>Port 22 from the office only</td><td>Security group</td><td>WAF</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Detective services — do not mix the sensors</h2>
+<p><strong>GuardDuty</strong> — threat findings from CloudTrail, VPC Flow Logs, DNS (and more). “Crypto mining,” “stolen key used abroad.” Not a CVE scanner.</p>
+<p><strong>Inspector</strong> — CVE and network reachability on EC2, ECR images, Lambda. “Scan for missing patches.”</p>
+<p><strong>Macie</strong> — sensitive data (PII) in S3. Not EBS in place.</p>
+<p><strong>Security Hub</strong> — aggregates findings and runs security standards (CIS, foundational best practices). Central pane of glass — does not replace the sensors.</p>
+
+<h2>Secrets Manager versus Parameter Store</h2>
+<p><strong>Secrets Manager</strong> — secrets with lifecycle: automatic rotation (including RDS/Aurora integration), resource policies, cross-account share. Stem says “rotate DB password every 30 days” → Secrets Manager.</p>
+<p><strong>Parameter Store</strong> — hierarchical config (<code>/app/prod/url</code>). SecureString uses KMS. Cheap. You rotate yourself. Not the managed RDS rotation contract.</p>
+
+<p><strong>Firewall Manager</strong> — Organizations policy that forces WAF, Shield Advanced associations, or security-group baselines onto every account/OU. Use when “every ALB must get this web ACL, including next month’s accounts.”</p>
+
+<h2>Use case 1 — encrypt large objects with audit</h2>
+<p><strong>Need:</strong> Encrypt 50 MB documents; audit key use; revoke by denying one key.</p>
+<p><strong>Design:</strong> Customer managed key + envelope encryption (or SSE-KMS). Not <code>kms:Encrypt</code> on the whole 50 MB. Not SSE-S3 if you need a key you can revoke.</p>
+
+<h2>Use case 2 — SQLi plus big DDoS on API Gateway</h2>
+<p><strong>Need:</strong> Block injection patterns; AWS help and cost protection on large DDoS; stay on API Gateway.</p>
+<p><strong>Design:</strong> WAF web ACL on API Gateway + Shield Advanced on supported resources. Shield Standard is already free.</p>
+
+<h2>How to choose — stem language → pick</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem says…</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Audit/revoke encryption key; SSE with CloudTrail</td><td>CMK / SSE-KMS</td><td>SSE-S3 AWS owned key</td></tr>
+    <tr><td>Encrypt huge payload</td><td>Envelope / GenerateDataKey</td><td>Encrypt API on the whole file</td></tr>
+    <tr><td>SQLi / XSS / rate / geo on HTTP</td><td>WAF on CF/ALB/APIGW</td><td>WAF on NLB; Shield alone</td></tr>
+    <tr><td>DRT / DDoS cost protection</td><td>Shield Advanced</td><td>WAF as a DDoS silver bullet</td></tr>
+    <tr><td>Unusual API / crypto mining</td><td>GuardDuty</td><td>Inspector / Macie</td></tr>
+    <tr><td>CVE / image scan</td><td>Inspector</td><td>GuardDuty</td></tr>
+    <tr><td>PII in S3</td><td>Macie</td><td>Scanning EBS with Macie</td></tr>
+    <tr><td>Rotate RDS password automatically</td><td>Secrets Manager</td><td>Parameter Store SecureString alone</td></tr>
+    <tr><td>Every account’s ALBs must have WAF</td><td>Firewall Manager</td><td>Email a CloudFormation snippet</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — envelope encryption</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">An app must encrypt 50 MB JSON before S3. Compliance needs CloudTrail key audit and the ability to revoke historical access by denying one key. Developers want to call <code>kms:Encrypt</code> on the whole document.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Call <code>kms:Encrypt</code> with the document as plaintext — size is not a limit.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Customer managed key; GenerateDataKey / SSE-KMS envelope; key policy + CloudTrail for audit and revoke.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> SSE-S3; revoke the AWS owned key from the S3 console.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> CloudHSM on every host because 50 MB is “large.”</div>
+</div>
+
+<h2>Case study 2 — WAF plus Shield Advanced</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">API Gateway + Lambda saw SQLi-like query strings and a volumetric flood that inflated the bill. Need injection blocking, DRT help, and cost protection. Stay on API Gateway.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Shield Advanced only — it parses SQL in query strings.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Move to NLB, attach WAF to the NLB, open a ticket for Shield Standard.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> WAF on API Gateway (managed SQLi + rate rules) and Shield Advanced for DRT/cost protection. Standard is already on.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> IP denylist in Parameter Store checked inside every Lambda.</div>
+</div>
+
+<h2>Case study 3 — rotate Aurora passwords</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Aurora MySQL password sits in Elastic Beanstalk environment properties. Auditors want automatic 30-day rotation, no password in Beanstalk, secret encrypted at rest. Cost-sensitive but rotation is mandatory.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Parameter Store SecureString plus a homemade cron that runs <code>ALTER USER</code>.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Secrets Manager with managed Aurora rotation; app retrieves the secret at runtime.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Enable GuardDuty — it rotates credentials when it detects compromise.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Switch only to IAM DB auth and skip a secrets product; the stem asked for password rotation.</div>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>KMS Encrypt is not for big files.</strong> Use envelope encryption or SSE-KMS.</p>
+<p><strong>Key policy is mandatory for KMS.</strong> IAM alone often fails.</p>
+<p><strong>WAF ≠ Shield.</strong> HTTP rules vs network/volumetric DDoS.</p>
+<p><strong>CloudFront ACM certs live in us-east-1.</strong> ALB certs live with the ALB Region.</p>
+<p><strong>Detective services have different jobs.</strong> GuardDuty = threats; Inspector = CVEs; Macie = PII in S3; Hub = aggregate.</p>
+
+<div class="exam-skip"><strong class="label">Light touch on the exam</strong> WAF capacity unit math, Shield Advanced contract pricing, Macie identifier catalogs, CloudHSM internals.</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/kms/latest/developerguide/overview.html" target="_blank" rel="noopener">AWS KMS Developer Guide</a></li>
+  <li><a href="https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html#enveloping" target="_blank" rel="noopener">KMS envelope encryption</a></li>
+  <li><a href="https://docs.aws.amazon.com/acm/latest/userguide/acm-overview.html" target="_blank" rel="noopener">AWS Certificate Manager</a></li>
+  <li><a href="https://docs.aws.amazon.com/waf/latest/developerguide/waf-chapter.html" target="_blank" rel="noopener">AWS WAF</a></li>
+  <li><a href="https://docs.aws.amazon.com/waf/latest/developerguide/shield-chapter.html" target="_blank" rel="noopener">AWS Shield</a></li>
+  <li><a href="https://docs.aws.amazon.com/guardduty/latest/ug/what-is-guardduty.html" target="_blank" rel="noopener">Amazon GuardDuty</a></li>
+  <li><a href="https://docs.aws.amazon.com/inspector/latest/user/what-is-inspector.html" target="_blank" rel="noopener">Amazon Inspector</a></li>
+  <li><a href="https://docs.aws.amazon.com/macie/latest/user/what-is-macie.html" target="_blank" rel="noopener">Amazon Macie</a></li>
+  <li><a href="https://docs.aws.amazon.com/securityhub/latest/userguide/what-is-securityhub.html" target="_blank" rel="noopener">AWS Security Hub</a></li>
+  <li><a href="https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html" target="_blank" rel="noopener">AWS Secrets Manager</a></li>
+  <li><a href="https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html" target="_blank" rel="noopener">SSM Parameter Store</a></li>
+  <li><a href="https://docs.aws.amazon.com/waf/latest/developerguide/fms-chapter.html" target="_blank" rel="noopener">AWS Firewall Manager</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/iam.html">IAM and key policies</a>
+  <a href="../learn/specialty-security.html">CloudHSM, RAM, Artifact</a>
+  <a href="../learn/s3.html">S3 encryption</a>
+  <a href="../learn/identity-federation.html">Cognito and workforce identity</a>
+  <a href="../learn/governance.html">Organizations and Config</a>
+</div>

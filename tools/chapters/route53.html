@@ -1,0 +1,192 @@
+<h1>Route 53 — give your app a name people can type</h1>
+<div class="meta-row"><span class="pill must">Must-know</span><span class="pill domain">Domains 2 &amp; 3 · DNS, failover, latency</span></div>
+<p class="lede">Route 53 is AWS’s DNS service. It turns a friendly name like <code>example.com</code> into the address of your website or API. On the exam you will use it to send users to healthy servers, to the closest Region, or to a backup site when the primary fails.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>People type names, not IP addresses. Servers change IP addresses. Regions fail. You need a reliable phone book that can also say “if this Region is sick, send traffic to that one.”</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p>Amazon Route 53 is a managed <strong>DNS</strong> (Domain Name System) service. AWS documents three jobs you can mix: <strong>register a domain</strong>, <strong>route traffic</strong> with DNS records, and <strong>health-check</strong> resources so unhealthy targets stop getting traffic.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>Route 53 is a <strong>global</strong> service. Its name servers sit at the edge of the internet. Your records live in a <strong>hosted zone</strong> (a container for one domain). Public zones answer the internet. Private zones answer only inside VPCs you attach.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>Hosted zone · record · alias vs CNAME · routing policy · health check · private zone + Resolver (for hybrid). Those six ideas cover almost every SAA question.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>DNS in one breath</h3>
+  <p>When you open <code>www.example.com</code>, your computer asks a DNS resolver: “What IP should I use?” The resolver asks Route 53 (if Route 53 is the authority for that domain). Route 53 looks up a <strong>record</strong> and returns an answer. Your browser then connects to that IP. DNS does not carry the web page — it only finds the door.</p>
+</div>
+
+<p><strong>Domain name</strong> — the name you register (<code>example.com</code>). You can buy it in Route 53 or keep it at another registrar and still use Route 53 for DNS.</p>
+<p><strong>Hosted zone</strong> — the “folder” of DNS records for that domain. Same name as the domain. Public = internet. Private = only associated VPCs.</p>
+<p><strong>Record</strong> — one answer for one name. Example: “for <code>www.example.com</code>, send people to this load balancer.”</p>
+<p><strong>TTL (time to live)</strong> — how long resolvers may cache the answer. A high TTL means failover can feel slow, because some users keep the old answer. A low TTL updates faster but means more DNS queries (and cost).</p>
+
+<h2>How DNS traffic reaches your app (from AWS docs)</h2>
+<p>AWS walks through this as a numbered story: browser → ISP resolver → root → <code>.com</code> → Route 53 name server → your record → IP → your server. The Mermaid below follows that official flow.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  browser[User_browser] --> resolver[DNS_resolver_ISP]
+  resolver --> root[Root_DNS]
+  root --> tld[TLD_com]
+  tld --> ns[Route53_name_server]
+  ns --> zone[Hosted_zone_record]
+  zone --> ip[Returns_IP_or_alias_target]
+  ip --> app[ALB_S3_CloudFront_or_EC2]
+  </div>
+  <p class="caption">Follows <a href="https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/welcome-dns-service.html" target="_blank" rel="noopener">How Amazon Route 53 routes traffic for your domain</a>. Open that page for AWS’s official diagram and the full step list.</p>
+</div>
+
+<p>Route 53’s three main functions, as AWS lists them:</p>
+<ol>
+  <li><strong>Domain registration</strong> — buy/renew a name.</li>
+  <li><strong>DNS routing</strong> — create records that point names at resources.</li>
+  <li><strong>Health checking</strong> — probe a resource; stop sending users there if it fails.</li>
+</ol>
+<p>See <a href="https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html" target="_blank" rel="noopener">What is Amazon Route 53?</a></p>
+
+<h2>Alias vs CNAME (the first big “gotcha,” explained simply)</h2>
+<p>A normal <strong>CNAME</strong> record says “this name is another name.” Internet DNS rules say you <strong>cannot</strong> put a CNAME on the bare domain (the <strong>apex</strong>, like <code>example.com</code>), because that name already needs SOA and NS records.</p>
+<p>An <strong>alias</strong> record is AWS’s solution. It looks like an A/AAAA record, can sit on the apex, and can point at AWS targets such as an ALB, CloudFront, S3 website endpoint, API Gateway, or another record in the same zone. Route 53 follows the target’s changing IPs for you. You never hard-code an ALB IP.</p>
+
+<div class="exam-tip"><strong class="label">Remember</strong> Apex (<code>example.com</code>) → ALB / CloudFront / S3 website = <strong>alias</strong>. Never “CNAME the apex.” Subdomains to a non-AWS hostname often use a normal CNAME.</div>
+
+<h2>Routing policies — which answer should DNS give?</h2>
+<p>A routing policy is simply the rule Route 53 uses when more than one answer is possible. Read the stem; pick the policy that matches the sentence.</p>
+
+<div class="table-wrap"><table>
+  <thead><tr><th>Policy</th><th>In plain English</th><th>Typical stem</th></tr></thead>
+  <tbody>
+    <tr><td>Simple</td><td>One place (or a list of IPs with no fancy logic)</td><td>Single website, no failover story</td></tr>
+    <tr><td>Failover</td><td>Primary if healthy, else secondary</td><td>Active/passive DR between Regions</td></tr>
+    <tr><td>Weighted</td><td>Send a percentage of users to B</td><td>Canary, blue/green, gradual move</td></tr>
+    <tr><td>Latency</td><td>Send to the AWS Region that is “closer” for this resolver</td><td>Best performance across Regions</td></tr>
+    <tr><td>Geolocation</td><td>Send by country/continent (plus a default)</td><td>Laws, licensing, language sites</td></tr>
+    <tr><td>Geoproximity</td><td>Bias traffic toward a place; you can shift a slider</td><td>Fine-tune between nearby stacks</td></tr>
+    <tr><td>Multivalue</td><td>Return several healthy IPs (simple DNS load sharing)</td><td>A few servers, no load balancer yet</td></tr>
+  </tbody>
+</table></div>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  q{{What does the question want}}
+  q -->|apex to ALB or CloudFront| alias[Alias record]
+  q -->|if Region A dies use B| fo[Failover + health]
+  q -->|closest Region| lat[Latency + health]
+  q -->|10 percent canary| w[Weighted]
+  q -->|only Germany may use this stack| geo[Geolocation + default]
+  </div>
+  <p class="caption">Decision view for SAA. Policy definitions: <a href="https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html" target="_blank" rel="noopener">Choosing a routing policy</a>.</p>
+</div>
+
+<p><strong>Latency is not a law fence.</strong> It optimizes network distance to an AWS Region. If personal data must stay in Germany, that is <strong>geolocation</strong> (or an app-layer control), not latency.</p>
+<p><strong>Failover needs a health signal.</strong> Without a health check (or “evaluate target health” on an alias to an ELB/CloudFront), failover will not move traffic when something dies.</p>
+
+<h2>Use case 1 — simple public website</h2>
+<p><strong>Need:</strong> Users type <code>example.com</code> and <code>www.example.com</code>, get HTTPS, content from S3, cached worldwide.</p>
+<p><strong>Design:</strong> CloudFront in front of S3. ACM certificate in <code>us-east-1</code> for CloudFront. Route 53 <strong>alias</strong> A/AAAA records for apex and <code>www</code> → the distribution.</p>
+<div class="mermaid">
+flowchart LR
+  user[User] --> r53[Route53_alias]
+  r53 --> cf[CloudFront]
+  cf --> s3[S3_origin]
+</div>
+
+<h2>Use case 2 — active/passive disaster recovery</h2>
+<p><strong>Need:</strong> If the primary Region’s API is unhealthy, send users to a secondary Region.</p>
+<p><strong>Design:</strong> Failover routing: primary + secondary records, health check (or evaluate target health on each Regional ALB), often a low TTL so caches expire faster. This is DNS failover — clients may still cache until TTL ends.</p>
+<div class="mermaid">
+flowchart LR
+  user[User] --> r53[Failover_policy]
+  r53 -->|healthy| primary[ALB_Region_A]
+  r53 -->|unhealthy| secondary[ALB_Region_B]
+  hc[Health_check] --> r53
+</div>
+<p>Detail: <a href="https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover.html" target="_blank" rel="noopener">Configuring DNS failover</a>.</p>
+
+<h2>Use case 3 — private names inside a VPC (and the office)</h2>
+<p><strong>Need:</strong> <code>payments.internal</code> resolves to an internal ALB for EC2. The on-premises office must resolve the same name over Direct Connect/VPN. EC2 must also resolve <code>legacy.corp.example</code> that only exists on Windows DNS in the datacenter.</p>
+<p><strong>Design:</strong> Private hosted zone associated with the VPC. <strong>Route 53 Resolver inbound</strong> endpoints so on-premises can query AWS. <strong>Outbound</strong> endpoints + a forwarding rule so the VPC can query the Windows DNS.</p>
+<div class="mermaid">
+flowchart LR
+  ec2[EC2_in_VPC] --> priv[Private_hosted_zone]
+  dc[On_prem_PC] --> inbound[Resolver_inbound]
+  inbound --> priv
+  ec2 --> outbound[Resolver_outbound]
+  outbound --> win[Windows_DNS]
+</div>
+<p>Start from <a href="https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resolver.html" target="_blank" rel="noopener">What is Route 53 Resolver?</a></p>
+
+<h2>Case study 1 — apex to CloudFront</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">You own <code>example.com</code> in a Route 53 public hosted zone. You want HTTPS for the apex and <code>www</code>, global caching, origin in S3. What works?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> CNAME at <code>example.com</code> to the CloudFront domain. CNAME is not allowed at the apex.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Alias A/AAAA for apex and <code>www</code> → CloudFront. ACM cert in <code>us-east-1</code> covering both names.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Paste CloudFront’s current IPs into apex A records. Those IPs change.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Weighted S3 website endpoints and skip CloudFront “because alias cannot target CloudFront.” Alias to CloudFront at the apex is the normal pattern.</div>
+  <p>Alias exists specifically so apex names can target AWS resources. See <a href="https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-choosing-alias-non-alias.html" target="_blank" rel="noopener">alias vs non-alias</a>.</p>
+</div>
+
+<h2>Case study 2 — latency vs failover vs geo</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">An API runs in Tokyo and Ireland. Users should hit the Region with better network latency. If that Region’s ALB has no healthy targets, use the other Region. No data-residency law in the stem.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Failover with Tokyo always primary. Irish users take a long path every day.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Geolocation without a default. Wrong tool (no residency requirement) and some countries get no answer.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> Latency-based records in both Regions, alias to each ALB, evaluate target health (or health checks).</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Simple routing listing both ALB names. No latency logic, no health removal.</div>
+</div>
+
+<h2>Case study 3 — hybrid DNS</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">VPC apps resolve <code>payments.internal</code> to an internal ALB. On-premises hosts over Direct Connect need the same name. EC2 must resolve <code>legacy.corp.example</code> on Windows DNS in the datacenter.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> A “secret” public hosted zone. Still public DNS.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Edit every <code>hosts</code> file. Does not scale.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> Private hosted zone + Resolver inbound for the datacenter + outbound forward for <code>corp.example</code>.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Geolocation public zone. Wrong problem.</div>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>Alias ≠ generic internet feature.</strong> Other DNS hosts may not have “alias.” On Route 53, use it for AWS targets and apex.</p>
+<p><strong>Health checks from the internet</strong> cannot reach a private IP. For private ALBs, prefer alias + evaluate target health, or a CloudWatch-based check.</p>
+<p><strong>DNS failover is not instant.</strong> TTL caching remains. For minutes-scale RTO, lower TTL and have the secondary stack ready (pilot light / warm standby).</p>
+<p><strong>Split-horizon:</strong> same name in a public zone and a private zone — internet sees CloudFront; VPC sees the internal ALB. That is intentional.</p>
+
+<div class="exam-skip"><strong class="label">Light touch on the exam</strong> Registrar transfers, WHOIS, Traffic Flow GUI details, Application Recovery Controller internals. Know the names; do not deep-dive.</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html" target="_blank" rel="noopener">What is Amazon Route 53?</a></li>
+  <li><a href="https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/welcome-dns-service.html" target="_blank" rel="noopener">How Route 53 routes traffic (official flow)</a></li>
+  <li><a href="https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/route-53-concepts.html" target="_blank" rel="noopener">Route 53 concepts</a></li>
+  <li><a href="https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-choosing-alias-non-alias.html" target="_blank" rel="noopener">Alias vs non-alias records</a></li>
+  <li><a href="https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html" target="_blank" rel="noopener">Choosing a routing policy</a></li>
+  <li><a href="https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover.html" target="_blank" rel="noopener">DNS failover</a></li>
+  <li><a href="https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resolver.html" target="_blank" rel="noopener">Route 53 Resolver</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/cloudfront.html">CloudFront and certificates</a>
+  <a href="../learn/elb-asg.html">Load balancers and health</a>
+  <a href="../compare/dr.html">DR picker</a>
+  <a href="../learn/networking-advanced.html">Hybrid networking</a>
+</div>

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Outposts and Wavelength · SAA-C03 Study</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Sinhala:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/docs.css">
+</head>
+<body data-root="../">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="topbar">
+    <button class="menu-btn" aria-label="Open menu">☰</button>
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">S</span>
+      SAA-C03 <span class="sub">study site</span>
+    </a>
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input id="site-search" type="search" placeholder="Search services…" autocomplete="off">
+      <div id="search-results" hidden></div>
+    </div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar"><div class="nav-group"><h2>Exam</h2><a href="../index.html">Service catalog</a><a href="../exam/overview.html">Exam overview</a><a href="../exam/domain-1-secure.html">Domain 1 · Secure 30%</a><a href="../exam/domain-2-resilient.html">Domain 2 · Resilient 26%</a><a href="../exam/domain-3-performance.html">Domain 3 · Performance 24%</a><a href="../exam/domain-4-cost.html">Domain 4 · Cost 20%</a><a href="../exam/out-of-scope.html">Out of scope</a></div>
+<div class="nav-group"><h2>Learn</h2><a href="../learn/foundations.html">Foundations</a><a href="../learn/well-architected.html">Well-Architected</a><a href="../learn/iam.html">IAM</a><a href="../learn/identity-federation.html">Cognito &amp; federation</a><a href="../learn/security.html">KMS, WAF, Shield</a><a href="../learn/specialty-security.html">Security extras</a><a href="../learn/s3.html">S3</a><a href="../learn/storage.html">EBS, EFS, FSx</a><a href="../learn/ec2.html">EC2</a><a href="../learn/elb-asg.html">Auto Scaling &amp; ELB</a><a href="../learn/vpc.html">VPC</a><a href="../learn/networking-advanced.html">Hybrid networking</a><a href="../learn/route53.html">Route 53</a><a href="../learn/cloudfront.html">CloudFront &amp; GA</a><a href="../learn/databases.html">RDS, Aurora, ElastiCache</a><a href="../learn/dynamodb.html">DynamoDB &amp; API Gateway</a><a href="../learn/specialty-databases.html">DocumentDB, Neptune</a><a href="../learn/messaging.html">SQS, SNS, Kinesis</a><a href="../learn/lambda.html">Lambda &amp; Step Functions</a><a href="../learn/integration-extras.html">AppSync, MSK, AppFlow</a><a href="../learn/monitoring.html">CloudWatch &amp; CloudTrail</a><a href="../learn/containers.html">ECS, EKS, Fargate</a><a href="../learn/migration.html">Migration &amp; DR</a><a href="../learn/analytics.html">Analytics</a><a href="../learn/governance.html">Organizations &amp; Config</a><a href="../learn/cost.html">Cost optimization</a><a class="active" href="../learn/hybrid-edge.html">Outposts &amp; Wavelength</a><a href="../learn/ml.html">Machine learning</a></div>
+<div class="nav-group"><h2>Compare</h2><a href="../compare/storage.html">Storage picker</a><a href="../compare/databases.html">Database picker</a><a href="../compare/messaging.html">Messaging picker</a><a href="../compare/compute.html">Compute picker</a><a href="../compare/networking.html">Networking picker</a><a href="../compare/dr.html">DR picker</a></div>
+<div class="nav-group"><h2>Sinhala</h2><a href="../sinhala/index.html">Sinhala notes</a></div></aside>
+    <main id="main">
+      <div class="crumb">Learn / Hybrid</div>
+      <h1>Outposts, Local Zones, Wavelength, and VMware Cloud</h1>
+<div class="meta-row"><span class="pill name">Know the name</span><span class="pill domain">Domains 3–4 · hybrid and edge placement</span></div>
+<p class="lede">Most SAA workloads live in Regions. These products exist when the stem refuses a normal Region: data must stay in your building, users need metro latency, mobiles need 5G single-digit milliseconds, or the estate is VMware you will not convert.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Physics and law: some machines cannot wait for a Region round trip, and some data cannot leave a factory. Teams still want familiar AWS APIs or an unchanged vSphere world.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p><strong>Outposts</strong> — AWS-managed racks in your datacenter. <strong>Local Zones</strong> — AWS-operated metro extensions of a Region. <strong>Wavelength</strong> — compute inside a telecom 5G network. <strong>VMware Cloud on AWS</strong> — managed SDDC on bare metal.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>Outposts sit on <strong>your floor</strong>. Local Zones sit in <strong>AWS metro buildings</strong>. Wavelength sits in a <strong>carrier POP</strong>. VMware Cloud runs in an AWS Region on dedicated hosts. Parent Region still handles much control-plane and snapshot gravity.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>Residency → Outposts · city latency → Local Zones · 5G ultra-low latency → Wavelength · keep vSphere → VMware Cloud. Direct Connect is a cable, not a place to run compute.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+<p>Pick from the constraint, not from the marketing word “edge.” CloudFront caches HTTP at POPs — it does not run your factory PLC loop. Global Accelerator improves paths into Regions — it does not place servers in a 5G radio network.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  q{{Constraint}}
+  q -->|data_stays_in_my_DC_AWS_APIs| out[Outposts]
+  q -->|metro_latency_AWS_building| lz[Local_Zones]
+  q -->|5G_carrier_ultra_low| wave[Wavelength]
+  q -->|keep_vSphere| vmc[VMware_Cloud_on_AWS]
+  q -->|normal_cloud| region[AWS_Region]
+  </div>
+  <p class="caption">Placement fork. Overviews: <a href="https://docs.aws.amazon.com/outposts/latest/userguide/what-is-outposts.html" target="_blank" rel="noopener">What is AWS Outposts?</a>, <a href="https://docs.aws.amazon.com/local-zones/latest/ug/what-are-aws-local-zones.html" target="_blank" rel="noopener">What are AWS Local Zones?</a>, <a href="https://docs.aws.amazon.com/wavelength/latest/developerguide/what-is-wavelength.html" target="_blank" rel="noopener">What is AWS Wavelength?</a>.</p>
+</div>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem language</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>AWS APIs/EC2 in your facility; residency or shop-floor latency</td><td>Outposts</td><td>DX alone; Snow left forever; Wavelength</td></tr>
+    <tr><td>Users in a city; AWS-operated zone; parent Region control plane</td><td>Local Zones</td><td>Outposts in the customer factory</td></tr>
+    <tr><td>5G handsets; servers inside carrier network</td><td>Wavelength</td><td>CloudFront; Outposts in the office</td></tr>
+    <tr><td>Lift vSphere/vSAN/NSX unchanged</td><td>VMware Cloud on AWS</td><td>Homemade VMware AMIs as the managed answer</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — factory residency</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">PLC data must stay in the plant with sub-10 ms to machines. Engineers want IAM, AMIs, and EBS-style volumes they know.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Direct Connect to Regional EC2 — compute still leaves the building.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> AWS Outposts in the factory.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Wavelength — that is carrier 5G, not a private plant.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Snowball Edge as a permanent cluster — Snow is primarily a transfer appliance you ship back.</div>
+</div>
+
+<h2>Case study 2 — 5G game</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Mobile game needs single-digit millisecond to 5G users; servers must sit in the carrier metro network, not 30 ms away in a Region.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> CloudFront — caches HTTP; does not host your game loop next to the radio.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> AWS Wavelength zones with the carrier.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Outposts in HQ.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Global Accelerator alone.</div>
+</div>
+
+<h2>Tricky points</h2>
+<p><strong>Local Zones ≠ Outposts ≠ Wavelength.</strong> Who owns the building (you / AWS / carrier) is the tell.</p>
+<p><strong>Snapshots and control plane</strong> often still involve the parent Region — the exam still wants Outposts when the running workload cannot leave the site.</p>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/outposts/latest/userguide/what-is-outposts.html" target="_blank" rel="noopener">AWS Outposts</a></li>
+  <li><a href="https://docs.aws.amazon.com/local-zones/latest/ug/what-are-aws-local-zones.html" target="_blank" rel="noopener">AWS Local Zones</a></li>
+  <li><a href="https://docs.aws.amazon.com/wavelength/latest/developerguide/what-is-wavelength.html" target="_blank" rel="noopener">AWS Wavelength</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../compare/compute.html">Compute picker</a>
+  <a href="../learn/networking-advanced.html">Direct Connect</a>
+  <a href="../learn/cloudfront.html">CloudFront vs edge compute</a>
+</div>
+
+    </main>
+  </div>
+  <script src="../assets/js/catalog-data.js"></script>
+  <script src="../assets/js/nav.js?v=2"></script>
+  <script src="../assets/js/search.js"></script>
+  <script src="../assets/js/catalog.js"></script>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "dark",
+      securityLevel: "loose",
+      themeVariables: {
+        darkMode: true,
+        background: "#0a101c",
+        primaryColor: "#243656",
+        primaryTextColor: "#e8eef8",
+        primaryBorderColor: "#ff9900",
+        lineColor: "#9aabc4",
+        secondaryColor: "#1a2438",
+        tertiaryColor: "#121a2b",
+        nodeTextColor: "#e8eef8"
+      }
+    });
+  </script>
+</body>
+</html>

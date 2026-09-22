@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Foundations · SAA-C03 Study</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Sinhala:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/docs.css">
+</head>
+<body data-root="../">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="topbar">
+    <button class="menu-btn" aria-label="Open menu">☰</button>
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">S</span>
+      SAA-C03 <span class="sub">study site</span>
+    </a>
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input id="site-search" type="search" placeholder="Search services…" autocomplete="off">
+      <div id="search-results" hidden></div>
+    </div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar"><div class="nav-group"><h2>Exam</h2><a href="../index.html">Service catalog</a><a href="../exam/overview.html">Exam overview</a><a href="../exam/domain-1-secure.html">Domain 1 · Secure 30%</a><a href="../exam/domain-2-resilient.html">Domain 2 · Resilient 26%</a><a href="../exam/domain-3-performance.html">Domain 3 · Performance 24%</a><a href="../exam/domain-4-cost.html">Domain 4 · Cost 20%</a><a href="../exam/out-of-scope.html">Out of scope</a></div>
+<div class="nav-group"><h2>Learn</h2><a class="active" href="../learn/foundations.html">Foundations</a><a href="../learn/well-architected.html">Well-Architected</a><a href="../learn/iam.html">IAM</a><a href="../learn/identity-federation.html">Cognito &amp; federation</a><a href="../learn/security.html">KMS, WAF, Shield</a><a href="../learn/specialty-security.html">Security extras</a><a href="../learn/s3.html">S3</a><a href="../learn/storage.html">EBS, EFS, FSx</a><a href="../learn/ec2.html">EC2</a><a href="../learn/elb-asg.html">Auto Scaling &amp; ELB</a><a href="../learn/vpc.html">VPC</a><a href="../learn/networking-advanced.html">Hybrid networking</a><a href="../learn/route53.html">Route 53</a><a href="../learn/cloudfront.html">CloudFront &amp; GA</a><a href="../learn/databases.html">RDS, Aurora, ElastiCache</a><a href="../learn/dynamodb.html">DynamoDB &amp; API Gateway</a><a href="../learn/specialty-databases.html">DocumentDB, Neptune</a><a href="../learn/messaging.html">SQS, SNS, Kinesis</a><a href="../learn/lambda.html">Lambda &amp; Step Functions</a><a href="../learn/integration-extras.html">AppSync, MSK, AppFlow</a><a href="../learn/monitoring.html">CloudWatch &amp; CloudTrail</a><a href="../learn/containers.html">ECS, EKS, Fargate</a><a href="../learn/migration.html">Migration &amp; DR</a><a href="../learn/analytics.html">Analytics</a><a href="../learn/governance.html">Organizations &amp; Config</a><a href="../learn/cost.html">Cost optimization</a><a href="../learn/hybrid-edge.html">Outposts &amp; Wavelength</a><a href="../learn/ml.html">Machine learning</a></div>
+<div class="nav-group"><h2>Compare</h2><a href="../compare/storage.html">Storage picker</a><a href="../compare/databases.html">Database picker</a><a href="../compare/messaging.html">Messaging picker</a><a href="../compare/compute.html">Compute picker</a><a href="../compare/networking.html">Networking picker</a><a href="../compare/dr.html">DR picker</a></div>
+<div class="nav-group"><h2>Sinhala</h2><a href="../sinhala/index.html">Sinhala notes</a></div></aside>
+    <main id="main">
+      <div class="crumb">Learn / Foundations</div>
+      <h1>AWS foundations — Regions, AZs, and who owns security</h1>
+<div class="meta-row"><span class="pill must">Must-know</span><span class="pill domain">All domains · start here</span></div>
+<p class="lede">AWS is a huge platform, but three ideas unlock almost every exam question: who is responsible for a control, where a resource lives, and whether you need high availability inside one Region or disaster recovery across Regions. Learn these first. Later chapters become easier.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>You need to know: “Is this my job or AWS’s?” and “If this building dies, does my app die?” Without that, every product name feels random.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p>AWS is a global cloud built from <strong>Regions</strong> (geographic areas), <strong>Availability Zones</strong> (independent data centers inside a Region), and <strong>edge locations</strong> (points of presence for DNS, CDN, and similar). The <strong>shared responsibility model</strong> splits security between AWS and you.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>Your data stays in the Region you choose unless you turn on replication. Multi-AZ keeps you up if one AZ fails. Multi-Region keeps you up if a whole Region fails. Edge services sit outside your VPC, closer to users.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>Shared responsibility · Region · AZ · edge · Multi-AZ (HA) vs Multi-Region (DR) · account as blast-radius boundary. Those six ideas appear everywhere on SAA-C03.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>Shared responsibility in one breath</h3>
+  <p>AWS is responsible for security <strong>of</strong> the cloud: buildings, power, network cables, hypervisors, and the managed software AWS runs. You are responsible for security <strong>in</strong> the cloud: your data, who can sign in, encryption choices, network rules (security groups), guest OS on EC2, and application code. “Managed” never means “AWS chose my encryption key and my security group.”</p>
+</div>
+
+<p><strong>Region</strong> — a geographic area AWS isolates from other Regions. Pick one for latency to users, for data-residency law (“must stay in the EU”), and for which services exist there. Data does not leave a Region unless you configure a copy (S3 Cross-Region Replication, RDS read replica, and so on).</p>
+<p><strong>Availability Zone (AZ)</strong> — one or more discrete data centers with independent power and networking, linked to other AZs in the same Region by fast private fiber. Spreading work across AZs is <strong>high availability (HA)</strong> inside one Region. It is not protection if the whole Region fails.</p>
+<p><strong>Edge location</strong> — a point of presence for services such as CloudFront, Route 53, and WAF. You do not launch EC2 “in an edge.” You cache or terminate traffic there.</p>
+<p><strong>Account</strong> — the hard isolation boundary. Resources in Account A are invisible to Account B until you write a trust, a resource policy, or a share. Prefer separate accounts for prod, test, and sandbox.</p>
+
+<h2>How AWS draws the shared-responsibility line (from AWS docs)</h2>
+<p>AWS publishes a simple split: security <em>of</em> the cloud versus security <em>in</em> the cloud. The more managed the service, the more AWS does — but you always keep data, identity, and configuration.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  ofCloud[AWS_security_OF_the_cloud] --> hw[Facilities_hardware_network]
+  ofCloud --> hyper[Hypervisor_and_managed_control_planes]
+  inCloud[Customer_security_IN_the_cloud] --> data[Customer_data]
+  inCloud --> iam[IAM_and_account_hygiene]
+  inCloud --> os[Guest_OS_on_EC2]
+  inCloud --> net[SG_NACL_routing]
+  inCloud --> enc[Encryption_and_TLS_choices]
+  </div>
+  <p class="caption">Follows the split on <a href="https://aws.amazon.com/compliance/shared-responsibility-model/" target="_blank" rel="noopener">AWS Shared Responsibility Model</a>. Open that page for AWS’s official diagram.</p>
+</div>
+
+<div class="table-wrap"><table>
+  <thead><tr><th>Service style</th><th>AWS owns</th><th>You still own</th></tr></thead>
+  <tbody>
+    <tr><td>EC2 / EBS / VPC</td><td>Hardware, hypervisor, AZ buildings</td><td>AMI, OS patches, security groups, encryption toggle</td></tr>
+    <tr><td>RDS / ElastiCache</td><td>Host OS, engine patching on the managed node</td><td>Engine choice, SG, backups, KMS, DB users</td></tr>
+    <tr><td>Lambda / Fargate</td><td>Runtime host, scaling, patching the sandbox</td><td>Code, IAM role, secrets, VPC placement</td></tr>
+    <tr><td>S3 / DynamoDB</td><td>Durability of the storage plane</td><td>Bucket/table policies, encryption, public-access settings</td></tr>
+  </tbody>
+</table></div>
+
+<div class="exam-tip"><strong class="label">Remember</strong> Migrating MySQL to RDS does not move encryption or network isolation to AWS. You still enable KMS, force TLS, and lock the security group.</div>
+
+<h2>Global infrastructure — Region, AZ, edge</h2>
+<p>AWS documents Regions as isolated geographies and AZs as independent failure domains inside a Region. Edge locations sit closer to users for DNS and content delivery.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TB
+  users[Users] --> edge[Edge_CloudFront_Route53]
+  edge --> r1[Region_A]
+  edge --> r2[Region_B]
+  r1 --> az1[AZ_1]
+  r1 --> az2[AZ_2]
+  r1 --> az3[AZ_3]
+  r2 --> azb[AZ_1_in_B]
+  </div>
+  <p class="caption">Matches the hierarchy in <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html" target="_blank" rel="noopener">Regions and Availability Zones</a> and <a href="https://aws.amazon.com/about-aws/global-infrastructure/" target="_blank" rel="noopener">Global infrastructure</a>.</p>
+</div>
+
+<p><strong>Local Zones</strong> put compute near a metro for very low latency. <strong>Wavelength</strong> puts compute inside a 5G carrier network. <strong>Outposts</strong> puts AWS racks in your data center. Know the names; SAA rarely asks you to size them.</p>
+
+<h2>Scope of a service: global, regional, AZ</h2>
+<p>IAM users and roles are <strong>global</strong> identities (you do not create “a role in eu-west-1”). Route 53 public zones and CloudFront are also global control planes. Most resources are <strong>regional</strong>: VPC, S3 data, KMS key, RDS, Lambda. Subnets and EBS volumes are <strong>AZ-scoped</strong> — you cannot attach an EBS volume in AZ-a to an instance in AZ-b without a snapshot and a new volume.</p>
+
+<div class="table-wrap"><table>
+  <thead><tr><th>Scope</th><th>Examples</th><th>Multi-Region needs</th></tr></thead>
+  <tbody>
+    <tr><td>Global</td><td>IAM, Organizations, Route 53, CloudFront</td><td>Usually nothing extra for the control plane</td></tr>
+    <tr><td>Regional</td><td>VPC, S3 data, KMS, RDS, Lambda, ALB</td><td>Replication feature or a second stack</td></tr>
+    <tr><td>AZ</td><td>Subnet, EBS volume, EC2 instance, NAT Gateway</td><td>Multi-AZ first; then regional copy for DR</td></tr>
+  </tbody>
+</table></div>
+
+<h2>High availability versus disaster recovery</h2>
+<p><strong>Multi-AZ is HA.</strong> It survives loss of one data center. Examples: RDS Multi-AZ, an ALB across three subnets, an Auto Scaling group in two AZs.</p>
+<p><strong>Multi-Region is DR</strong> (or active-active). It survives loss of a whole Region. AWS names strategies such as backup/restore, pilot light, warm standby, and active-active. Do not pick “add a second AZ” when the stem says “Region failure.”</p>
+<p>Availability is “can a client reach a healthy copy right now.” Durability is “are the bits still stored after a long time.” S3’s famous “eleven nines” are durability, not the same as availability.</p>
+
+<h2>Use case 1 — pick a Region for law and latency</h2>
+<p><strong>Need:</strong> Customers are in Tokyo. Personal data must stay in Japan.</p>
+<p><strong>Design:</strong> Run the stack in an Asia Pacific Region that meets residency (for example <code>ap-northeast-1</code>). Do not “fix latency with a US Region and hope.” Edge (CloudFront) can cache public content worldwide; the origin and database stay in the residency Region.</p>
+<div class="mermaid">
+flowchart LR
+  user[User_in_Tokyo] --> edge[CloudFront_edge]
+  edge --> origin[App_in_ap_northeast_1]
+  origin --> db[RDS_same_Region]
+</div>
+
+<h2>Use case 2 — survive one AZ, plan for Region loss</h2>
+<p><strong>Need:</strong> Minutes of downtime if one data center fails. Hours of recovery if the whole Region fails.</p>
+<p><strong>Design:</strong> Multi-AZ compute and database for HA. Cross-Region snapshots or a read replica / Backup plan for DR. Those are two different designs.</p>
+<div class="mermaid">
+flowchart LR
+  alb[ALB] --> asg[ASG_two_AZs]
+  asg --> rds[RDS_MultiAZ]
+  rds --> snap[Snapshot_copy_to_DR_Region]
+</div>
+
+<h2>How to choose — stem language → pick</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem says…</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>“Managed, so encryption is AWS’s job”</td><td>Customer still enables KMS / TLS / SG</td><td>Handing all security to AWS</td></tr>
+    <tr><td>“Survive loss of one data center”</td><td>Multi-AZ HA</td><td>Only Multi-Region DR</td></tr>
+    <tr><td>“Entire Region unavailable”</td><td>Multi-Region DR</td><td>RDS Multi-AZ alone</td></tr>
+    <tr><td>“Must stay in the EU”</td><td>EU Region (+ controls)</td><td>Latency routing as a law fence</td></tr>
+    <tr><td>“Private EC2 to S3, no internet”</td><td>Gateway VPC endpoint for S3</td><td>NAT “because it works”</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — who encrypts the managed database</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A company moves PCI MySQL from EC2 to Amazon RDS. Compliance still needs encryption at rest, TLS, and private subnets. An architect says: “RDS is managed, so AWS owns encryption and network isolation.” Who is right?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Agree. Managed means AWS owns encryption and security groups.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Disagree. AWS patches the host and runs Multi-AZ storage. You still enable KMS, force TLS, and use private subnets with a tight security group.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Disagree only about TLS; encryption at rest is always on and cannot be configured.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Move to DynamoDB because NoSQL has no customer security work.</div>
+  <p>Managed infrastructure is not a transfer of data-classification duty. See the <a href="https://aws.amazon.com/compliance/shared-responsibility-model/" target="_blank" rel="noopener">shared responsibility model</a>.</p>
+</div>
+
+<h2>Case study 2 — AZ outage versus Region outage</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">The app is in us-east-1: Auto Scaling in one subnet, single-AZ RDS. Leadership wants minutes of recovery if one data center fails, and a plan if the whole Region fails with an RTO of hours. What addresses both?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Enable RDS Multi-AZ only — AWS will fail the instance into another Region automatically.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Add web servers in Europe; leave the only database in one AZ in us-east-1.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> Spread the ASG across two or more AZs behind an ALB and use RDS Multi-AZ for the data-center goal. For Region failure, use snapshot copy / cross-Region replica / AWS Backup and a restore plan.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Put the database on RAID-0 EBS in one AZ so disks cannot fail.</div>
+</div>
+
+<h2>Case study 3 — private path to S3 without NAT</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Private EC2 instances must read and write an S3 data-lake bucket in the same Region. They must not use the public internet. Security forbids a NAT Gateway for cost and path reasons. Lowest cost?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Add a NAT Gateway and call the public S3 endpoint over TLS.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Create a gateway VPC endpoint for S3, attach it to private route tables, and limit the bucket policy to that endpoint.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Use an interface endpoint for S3 plus a NAT “for defense in depth.”</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Copy the lake onto EBS volumes on every instance.</div>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>“Managed” ≠ “no customer security.”</strong> You still own IAM, encryption toggles, and network rules on RDS, Lambda, and S3.</p>
+<p><strong>Multi-AZ ≠ Multi-Region.</strong> Multi-AZ is HA. Region failure needs a second Region.</p>
+<p><strong>Edge ≠ AZ.</strong> You cannot run RDS in an edge location.</p>
+<p><strong>Cost is last among equals.</strong> Functional fit, security, and resilience beat a cheap single-AZ design when the stem required HA.</p>
+
+<div class="exam-skip"><strong class="label">Light touch on the exam</strong> Exact AZ counts per Region, Local Zone city lists, Wavelength carriers. Know the failure domain: AZ vs Region vs edge.</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://aws.amazon.com/compliance/shared-responsibility-model/" target="_blank" rel="noopener">Shared Responsibility Model</a></li>
+  <li><a href="https://docs.aws.amazon.com/whitepapers/latest/aws-overview/introduction.html" target="_blank" rel="noopener">Overview of Amazon Web Services</a></li>
+  <li><a href="https://aws.amazon.com/about-aws/global-infrastructure/" target="_blank" rel="noopener">Global infrastructure</a></li>
+  <li><a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html" target="_blank" rel="noopener">Regions and Availability Zones</a></li>
+  <li><a href="https://docs.aws.amazon.com/whitepapers/latest/aws-fault-isolation-boundaries/availability-zones.html" target="_blank" rel="noopener">Fault isolation boundaries — Availability Zones</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/well-architected.html">Well-Architected</a>
+  <a href="../learn/iam.html">IAM</a>
+  <a href="../learn/vpc.html">VPC</a>
+  <a href="../learn/migration.html">HA vs DR</a>
+  <a href="../exam/overview.html">Exam overview</a>
+</div>
+
+    </main>
+  </div>
+  <script src="../assets/js/catalog-data.js"></script>
+  <script src="../assets/js/nav.js?v=2"></script>
+  <script src="../assets/js/search.js"></script>
+  <script src="../assets/js/catalog.js"></script>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "dark",
+      securityLevel: "loose",
+      themeVariables: {
+        darkMode: true,
+        background: "#0a101c",
+        primaryColor: "#243656",
+        primaryTextColor: "#e8eef8",
+        primaryBorderColor: "#ff9900",
+        lineColor: "#9aabc4",
+        secondaryColor: "#1a2438",
+        tertiaryColor: "#121a2b",
+        nodeTextColor: "#e8eef8"
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lambda and Step Functions · SAA-C03 Study</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Sinhala:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/docs.css">
+</head>
+<body data-root="../">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="topbar">
+    <button class="menu-btn" aria-label="Open menu">☰</button>
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">S</span>
+      SAA-C03 <span class="sub">study site</span>
+    </a>
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input id="site-search" type="search" placeholder="Search services…" autocomplete="off">
+      <div id="search-results" hidden></div>
+    </div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar"><div class="nav-group"><h2>Exam</h2><a href="../index.html">Service catalog</a><a href="../exam/overview.html">Exam overview</a><a href="../exam/domain-1-secure.html">Domain 1 · Secure 30%</a><a href="../exam/domain-2-resilient.html">Domain 2 · Resilient 26%</a><a href="../exam/domain-3-performance.html">Domain 3 · Performance 24%</a><a href="../exam/domain-4-cost.html">Domain 4 · Cost 20%</a><a href="../exam/out-of-scope.html">Out of scope</a></div>
+<div class="nav-group"><h2>Learn</h2><a href="../learn/foundations.html">Foundations</a><a href="../learn/well-architected.html">Well-Architected</a><a href="../learn/iam.html">IAM</a><a href="../learn/identity-federation.html">Cognito &amp; federation</a><a href="../learn/security.html">KMS, WAF, Shield</a><a href="../learn/specialty-security.html">Security extras</a><a href="../learn/s3.html">S3</a><a href="../learn/storage.html">EBS, EFS, FSx</a><a href="../learn/ec2.html">EC2</a><a href="../learn/elb-asg.html">Auto Scaling &amp; ELB</a><a href="../learn/vpc.html">VPC</a><a href="../learn/networking-advanced.html">Hybrid networking</a><a href="../learn/route53.html">Route 53</a><a href="../learn/cloudfront.html">CloudFront &amp; GA</a><a href="../learn/databases.html">RDS, Aurora, ElastiCache</a><a href="../learn/dynamodb.html">DynamoDB &amp; API Gateway</a><a href="../learn/specialty-databases.html">DocumentDB, Neptune</a><a href="../learn/messaging.html">SQS, SNS, Kinesis</a><a class="active" href="../learn/lambda.html">Lambda &amp; Step Functions</a><a href="../learn/integration-extras.html">AppSync, MSK, AppFlow</a><a href="../learn/monitoring.html">CloudWatch &amp; CloudTrail</a><a href="../learn/containers.html">ECS, EKS, Fargate</a><a href="../learn/migration.html">Migration &amp; DR</a><a href="../learn/analytics.html">Analytics</a><a href="../learn/governance.html">Organizations &amp; Config</a><a href="../learn/cost.html">Cost optimization</a><a href="../learn/hybrid-edge.html">Outposts &amp; Wavelength</a><a href="../learn/ml.html">Machine learning</a></div>
+<div class="nav-group"><h2>Compare</h2><a href="../compare/storage.html">Storage picker</a><a href="../compare/databases.html">Database picker</a><a href="../compare/messaging.html">Messaging picker</a><a href="../compare/compute.html">Compute picker</a><a href="../compare/networking.html">Networking picker</a><a href="../compare/dr.html">DR picker</a></div>
+<div class="nav-group"><h2>Sinhala</h2><a href="../sinhala/index.html">Sinhala notes</a></div></aside>
+    <main id="main">
+      <div class="crumb">Learn / Serverless</div>
+      <h1>Lambda and Step Functions — run code without servers, then sequence it</h1>
+<div class="meta-row"><span class="pill must">Must-know</span><span class="pill domain">Domains 2, 3 &amp; 4 · Resilient · Performance · Cost</span></div>
+<p class="lede">Lambda runs your function when an event arrives — upload, API call, queue message — and AWS handles the fleet. Step Functions is the managed flowchart when one function is not enough. On the exam they are the default “least operations” compute, until a time limit or a VPC need forces a different shape.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Patching and scaling a server for a 200 ms handler is waste. You want to pay for the second the code runs, survive Multi-AZ automatically, and wire S3, API Gateway, or SQS without writing a custom worker fleet.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p><strong>AWS Lambda</strong> is serverless functions: you provide code (or a container image), memory size, and a timeout. <strong>Step Functions</strong> is a state machine that calls Lambda (and other AWS services) with retries, waits, choices, and human approvals.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>Functions run in a <strong>Region</strong>, Multi-AZ by default. By default they are <strong>not</strong> inside your VPC — they reach AWS APIs on the AWS network. Attach a VPC only when you must reach private resources (RDS, ElastiCache, private EC2). Step Functions is also Regional and managed.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>15-minute max runtime · execution IAM role · sync vs async invoke · VPC attach · reserved vs provisioned concurrency · destinations/DLQ · Standard vs Express Step Functions. Those cover almost every SAA Lambda question.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>A function in one breath</h3>
+  <p>You upload a <strong>handler</strong>. An event arrives. Lambda starts (or reuses) an <strong>execution environment</strong> — a small MicroVM with your runtime, the memory you chose, and a writable <code>/tmp</code>. Your code runs, returns a result, and you are billed for duration × memory. The first start after idle is a <strong>cold start</strong>; later invokes on the same environment are warm.</p>
+</div>
+
+<p><strong>Hard ceiling:</strong> maximum runtime is <strong>15 minutes</strong> (900 seconds). Raising memory does not raise the time limit. A 40-minute job is Fargate, Batch, Glue, or Step Functions stitching shorter tasks — not one Lambda with a fantasy timeout.</p>
+<p><strong>Memory is also CPU.</strong> More memory means more CPU and network. CPU-bound functions often finish faster (and sometimes cheaper) at higher memory. Waiting on a slow SQL query is not fixed by memory alone.</p>
+<p><strong>Execution role</strong> — an IAM role Lambda assumes. It needs permission to write logs and to call whatever the code calls (S3, DynamoDB, Secrets Manager). Callers (S3, EventBridge, another account) need permission to <strong>invoke</strong> the function (resource-based policy). Environment variables are not a secret store — use Secrets Manager or SSM and cache in global scope.</p>
+
+<h2>How invocation works (from AWS docs)</h2>
+<p>AWS groups invokes into three styles. Retries and failure paths differ, so read the stem for which style you are in.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  src[Event_source] --> kind{{Invoke_style}}
+  kind -->|Sync API_GW_ALB_SDK| sync[Caller_waits_errors_to_caller]
+  kind -->|Async S3_SNS_EventBridge| async[Lambda_retries_then_destination_or_DLQ]
+  kind -->|Mapping SQS_Kinesis_Streams| map[Poller_batches_partial_failure_config]
+  sync --> fn[Your_function]
+  async --> fn
+  map --> fn
+  </div>
+  <p class="caption">Follows invocation types in <a href="https://docs.aws.amazon.com/lambda/latest/dg/lambda-invocation.html" target="_blank" rel="noopener">Invoking Lambda functions</a> and <a href="https://docs.aws.amazon.com/lambda/latest/dg/invocation-async.html" target="_blank" rel="noopener">Asynchronous invocation</a>.</p>
+</div>
+
+<p><strong>Synchronous</strong> — API Gateway, ALB, Cognito triggers, SDK RequestResponse. Caller waits. API Gateway still stops at ~<strong>29 seconds</strong> even if the function could run longer.</p>
+<p><strong>Asynchronous</strong> — S3, SNS, EventBridge, Event invoke type. Lambda retries on error, then can send to an <strong>on-failure destination</strong> (SQS, SNS, EventBridge, Lambda) or a legacy DLQ. Without that, the failed event can vanish after retries.</p>
+<p><strong>Event source mapping</strong> — SQS, Kinesis, DynamoDB Streams. A poller batches records into your function. Configure partial-batch failure and the source’s own DLQ — an async function DLQ does not replace that.</p>
+
+<h2>IAM role and VPC — two separate decisions</h2>
+<p><strong>IAM:</strong> every function has an execution role. Least privilege: only the APIs and resources it needs. Do not confuse “role can read S3” with “S3 is allowed to invoke this function” — that second part is a resource policy on the function (or the event source configuration).</p>
+<p><strong>VPC:</strong> attach subnets and security groups only to reach <strong>VPC resources</strong>. Then the function needs a path out for public AWS APIs if required (NAT or VPC endpoints). If the function only talks to S3 and DynamoDB, <strong>do not attach a VPC</strong> — simpler, fewer cold-start and IP headaches. “VPC for security by default” is a common wrong instinct on the exam.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  q{{What must the function reach}}
+  q -->|Only_AWS_APIs_S3_DDB| noVpc[No_VPC_attach]
+  q -->|RDS_ElastiCache_private_IP| vpc[Attach_private_subnets_plus_SG]
+  vpc --> nat[NAT_or_VPC_endpoints_if_needed]
+  </div>
+  <p class="caption">Guidance aligned with <a href="https://docs.aws.amazon.com/lambda/latest/dg/configuration-vpc.html" target="_blank" rel="noopener">Giving Lambda functions access to resources in an Amazon VPC</a>.</p>
+</div>
+
+<h2>Reserved vs provisioned concurrency</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th></th><th>Reserved</th><th>Provisioned</th></tr></thead>
+  <tbody>
+    <tr><td>What it does</td><td>Caps (and guarantees) max concurrent executes; subtracts from the account pool</td><td>Keeps N environments warm</td></tr>
+    <tr><td>Cost</td><td>No extra fee — only a limit</td><td>You pay for warm time</td></tr>
+    <tr><td>When it wins</td><td>Protect RDS from a storm; stop a noisy function eating the account; set 0 to disable</td><td>Latency SLA / cold starts after deploy</td></tr>
+    <tr><td>Trap</td><td>“Make it faster” — a cap does not warm</td><td>“Protect the database” — warming can make the stampede worse</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Step Functions — Standard vs Express</h2>
+<p>A state machine says: run this task, wait, choose, map over a list, catch errors, maybe wait for a human <code>taskToken</code>. The compute is still Lambda (or Fargate, Glue, HTTP). Step Functions owns the durable pointer and retries so you do not sleep inside a 15-minute function.</p>
+
+<div class="table-wrap"><table>
+  <thead><tr><th></th><th>Standard</th><th>Express</th></tr></thead>
+  <tbody>
+    <tr><td>Duration</td><td>Up to one year</td><td>Up to five minutes</td></tr>
+    <tr><td>Semantics</td><td>Exactly-once</td><td>At-least-once</td></tr>
+    <tr><td>Billing</td><td>Per state transition</td><td>Duration × memory (high volume)</td></tr>
+    <tr><td>Exam reflex</td><td>Human approval, long waits, money must not double-charge</td><td>Thousands/sec, short enrichment, idempotent OK</td></tr>
+  </tbody>
+</table></div>
+
+<div class="doc-figure">
+  <div class="mermaid">
+sequenceDiagram
+  participant API
+  participant SFN
+  participant L1
+  participant Human
+  participant L2
+  API->>SFN: StartExecution_Standard
+  SFN->>L1: Validate
+  L1-->>SFN: ok
+  SFN->>Human: waitForTaskToken
+  Human-->>SFN: approved
+  SFN->>L2: Charge_once
+  L2-->>SFN: ok
+  </div>
+  <p class="caption">Long, exactly-once flow. Compare types in <a href="https://docs.aws.amazon.com/step-functions/latest/dg/concepts-standard-vs-express.html" target="_blank" rel="noopener">Standard vs Express workflows</a>.</p>
+</div>
+
+<p>Wait 24 hours → Standard Wait (not <code>time.sleep</code> in Lambda). High-volume short pipeline → Express (or Express child under Standard).</p>
+
+<h2>Use case 1 — HTTP API, short work</h2>
+<p><strong>Need:</strong> HTTPS API, ~200 ms CPU, unknown scale, talks only to DynamoDB.</p>
+<p><strong>Design:</strong> API Gateway + Lambda, no VPC, execution role with DynamoDB permissions.</p>
+<div class="mermaid">
+flowchart LR
+  user[Client] --> apigw[API_Gateway]
+  apigw --> fn[Lambda]
+  fn --> ddb[DynamoDB]
+</div>
+
+<h2>Use case 2 — long render + short thumbnail</h2>
+<p><strong>Need:</strong> Upload returns quickly; thumbnail in seconds; 12–20 minute render must not fail silently; metadata in Aurora.</p>
+<p><strong>Design:</strong> API returns 202 after S3 put. S3 → Lambda for thumbnail. Step Functions / Batch / Fargate for the long render. RDS Proxy + reserved concurrency on anything that touches Aurora. Destinations/Catch → SQS + alarm.</p>
+
+<h2>Use case 3 — human approval then charge</h2>
+<p><strong>Need:</strong> Validate, wait up to days for an adjuster, charge exactly once; also run a noisy 2-second fraud score at high rate.</p>
+<p><strong>Design:</strong> Standard workflow for the claim (waitForTaskToken + charge). Express workflow (or child) for fraud enrichment.</p>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem language</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Event-driven, short, least ops</td><td>Lambda</td><td>Always-on EC2 for a 200 ms handler</td></tr>
+    <tr><td>Work &gt; 15 minutes</td><td>Fargate / Batch / Glue / Step Functions map</td><td>One Lambda timeout “40 minutes”</td></tr>
+    <tr><td>Sync HTTPS &gt; ~29 s</td><td>202 + async (SQS / Step Functions)</td><td>Hold API Gateway until done</td></tr>
+    <tr><td>Only AWS APIs</td><td>No VPC</td><td>VPC + NAT “for security”</td></tr>
+    <tr><td>Reach RDS in private subnet</td><td>VPC attach + SG + Proxy as needed</td><td>Public RDS to avoid VPC</td></tr>
+    <tr><td>Cold start / p99 SLA</td><td>Provisioned concurrency (or SnapStart for Java)</td><td>Reserved concurrency alone</td></tr>
+    <tr><td>Protect downstream / isolate noisy fn</td><td>Reserved concurrency</td><td>Provisioned on the noisy neighbor</td></tr>
+    <tr><td>Human + exactly-once + long wait</td><td>Standard Step Functions</td><td>Express; Lambda sleep loop</td></tr>
+    <tr><td>High volume, short, idempotent</td><td>Express (or Lambda + SQS)</td><td>Standard billed per transition at huge rate</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — 15 minutes, 29 seconds, Aurora</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Users POST an image over HTTPS. Thumbnail in 1–2 seconds. High-res render takes 12–20 minutes and must not fail silently. Job metadata goes to Aurora. Bursty traffic. Least ops, cost-aware, highly available?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> One Lambda timeout 20 minutes, sync behind API Gateway, provisioned concurrency 500, image stored only in <code>/tmp</code>.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> One always-on <code>m5.4xlarge</code>, no Auto Scaling.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> Fast accept (202) + S3; Lambda thumbnail; Step Functions/Batch/Fargate for long render; RDS Proxy + reserved concurrency for Aurora touchers; failure to SQS/alarm.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> WebSocket open 20 minutes while Express runs a 20-minute Lambda.</div>
+  <p>A hits three walls (15 min, 29 s, ephemeral disk) and warms a DB stampede. D invents illegal durations. C splits by duration.</p>
+</div>
+
+<h2>Case study 2 — two concurrency knobs</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Checkout API on Lambda has bad p99 after deploys (cold starts); need &lt;200 ms. Analytics Lambda yesterday ate the Regional concurrency pool and checkout got 429s. Checkout uses DynamoDB only; analytics uses RDS.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Reserved=10 on checkout; provisioned=1000 on analytics; both in the RDS VPC.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Provisioned concurrency on checkout alias; reserved concurrency on analytics; checkout stays out of VPC; analytics uses RDS Proxy (and maybe SQS).</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Move checkout to one Reserved EC2; leave analytics unbounded.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Destinations on checkout “to skip the handler and go faster.”</div>
+  <p>Reserved caps; provisioned warms. A does both backwards and VPC-attaches checkout for no reason. Destinations do not speed sync APIs.</p>
+</div>
+
+<h2>Case study 3 — Standard vs Express</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Insurance flow: validate → wait up to five days for adjuster → charge exactly once. Also 20k/min fraud enrichments that finish in two seconds and are idempotent. One orchestration family, no self-managed workers.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> One Express workflow that waits five days then charges.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> One Lambda that polls DynamoDB for approval inside a 15-minute loop.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> Standard workflow for claim + human token + charge; Express (or Express child) for fraud enrichment.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Amazon MQ for the adjuster because “Step Functions cannot wait for humans.”</div>
+  <p>Express cannot run five days and is at-least-once on the charge. C matches both semantic models.</p>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>Four clocks:</strong> Lambda 15 minutes · API Gateway ~29 seconds · Express 5 minutes · Standard up to 1 year. Many stems are a duration test.</p>
+<p><strong>VPC is not a security default</strong> — it is how you reach private resources.</p>
+<p><strong>Reserved vs provisioned</strong> — safer/isolate/disable vs warmer/faster. You can use both on different functions.</p>
+<p><strong>Destinations/DLQs are for async (and mapping failures).</strong> A failed sync API already returns the error to the client.</p>
+<p><strong>Idempotency</strong> matters wherever retries exist: async, Standard SQS, Express, stream bisects.</p>
+<p><strong>Scheduler → heavy work:</strong> EventBridge Scheduler can start Step Functions/Glue/Batch. Do not schedule a 40-minute job as one Lambda.</p>
+<p><strong>Step Functions ≠ EventBridge ≠ SQS.</strong> Bus starts work; queue buffers work; Step Functions coordinates steps.</p>
+
+<div class="exam-skip"><strong class="label">Light touch on the exam</strong> Every runtime version, Lambda Layers packaging minutiae, Step Functions ASL syntax trivia. Know Standard vs Express and the 15-minute wall.</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/lambda/latest/dg/welcome.html" target="_blank" rel="noopener">What is AWS Lambda?</a></li>
+  <li><a href="https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html" target="_blank" rel="noopener">Lambda quotas</a></li>
+  <li><a href="https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html" target="_blank" rel="noopener">Lambda execution role</a></li>
+  <li><a href="https://docs.aws.amazon.com/lambda/latest/dg/configuration-vpc.html" target="_blank" rel="noopener">Lambda in a VPC</a></li>
+  <li><a href="https://docs.aws.amazon.com/lambda/latest/dg/configuration-concurrency.html" target="_blank" rel="noopener">Reserved concurrency</a></li>
+  <li><a href="https://docs.aws.amazon.com/lambda/latest/dg/provisioned-concurrency.html" target="_blank" rel="noopener">Provisioned concurrency</a></li>
+  <li><a href="https://docs.aws.amazon.com/lambda/latest/dg/invocation-async.html" target="_blank" rel="noopener">Async invocation and destinations</a></li>
+  <li><a href="https://docs.aws.amazon.com/step-functions/latest/dg/welcome.html" target="_blank" rel="noopener">AWS Step Functions</a></li>
+  <li><a href="https://docs.aws.amazon.com/step-functions/latest/dg/concepts-standard-vs-express.html" target="_blank" rel="noopener">Standard vs Express</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/messaging.html">SQS, SNS, Kinesis</a>
+  <a href="../learn/dynamodb.html">DynamoDB &amp; API Gateway</a>
+  <a href="../learn/databases.html">RDS, Aurora, ElastiCache</a>
+  <a href="../learn/ec2.html">EC2</a>
+  <a href="../learn/containers.html">ECS, EKS, Fargate</a>
+  <a href="../compare/compute.html">Compute picker</a>
+</div>
+
+    </main>
+  </div>
+  <script src="../assets/js/catalog-data.js"></script>
+  <script src="../assets/js/nav.js?v=2"></script>
+  <script src="../assets/js/search.js"></script>
+  <script src="../assets/js/catalog.js"></script>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "dark",
+      securityLevel: "loose",
+      themeVariables: {
+        darkMode: true,
+        background: "#0a101c",
+        primaryColor: "#243656",
+        primaryTextColor: "#e8eef8",
+        primaryBorderColor: "#ff9900",
+        lineColor: "#9aabc4",
+        secondaryColor: "#1a2438",
+        tertiaryColor: "#121a2b",
+        nodeTextColor: "#e8eef8"
+      }
+    });
+  </script>
+</body>
+</html>

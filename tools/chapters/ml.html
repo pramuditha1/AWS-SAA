@@ -1,0 +1,138 @@
+<h1>Machine learning on AWS — pick the API, not the math</h1>
+<div class="meta-row"><span class="pill should">Should-know</span><span class="pill domain">Domain 3 · managed AI services</span></div>
+<p class="lede">SAA does not ask you to train neural nets by hand. It asks which managed API matches a sentence: see an image, hear speech, speak text, translate, chatbot, forecast, or custom model training. Match the verb to the service.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Building OCR, speech, or translation from scratch is slow. AWS sells ready APIs so architects can add “detect faces” or “transcribe the call” without an ML team.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p>A catalog of AI services (Rekognition, Transcribe, Polly, Translate, Comprehend, Lex, Textract, Forecast, Fraud Detector, and friends) plus <strong>SageMaker</strong> when you must build/train/host your own models.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>These APIs are <strong>Regional</strong> endpoints. You send data to the service (watch residency). SageMaker training/hosting runs in your account’s Region.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>Rekognition · Textract · Transcribe/Polly · Translate · Comprehend · Lex · SageMaker · Forecast. <strong>Amazon Personalize is out of scope / low value for SAA</strong> — do not study it deeply.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>Prebuilt API vs SageMaker</h3>
+  <p>If the stem describes a common capability AWS already sells, pick that service. If it says bring your own algorithm, custom training data, notebooks, and hosted endpoints you control, pick <strong>SageMaker</strong>.</p>
+</div>
+
+<div class="table-wrap"><table>
+  <thead><tr><th>Human need</th><th>Service</th></tr></thead>
+  <tbody>
+    <tr><td>Objects, faces, celebs, unsafe content in images/video</td><td>Rekognition</td></tr>
+    <tr><td>Extract text/tables from scans/PDFs (OCR/forms)</td><td>Textract</td></tr>
+    <tr><td>Speech → text</td><td>Transcribe (+ Medical variant)</td></tr>
+    <tr><td>Text → speech</td><td>Polly</td></tr>
+    <tr><td>Language A → language B</td><td>Translate</td></tr>
+    <tr><td>Sentiment, entities, key phrases in text</td><td>Comprehend (+ Medical)</td></tr>
+    <tr><td>Chatbot / voice bot (intents &amp; slots)</td><td>Lex (often + Connect)</td></tr>
+    <tr><td>Time-series demand forecasting</td><td>Forecast</td></tr>
+    <tr><td>Custom train/deploy ML</td><td>SageMaker</td></tr>
+  </tbody>
+</table></div>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  q{{What does the stem ask}}
+  q -->|see_image_or_video| rek[Rekognition]
+  q -->|read_document_OCR| tex[Textract]
+  q -->|hear_to_text| tr[Transcribe]
+  q -->|text_to_hear| polly[Polly]
+  q -->|translate| txl[Translate]
+  q -->|nlp_on_text| comp[Comprehend]
+  q -->|chatbot| lex[Lex]
+  q -->|custom_model| sm[SageMaker]
+  q -->|recommendations_Personalize| skip[Skip_low_exam_value]
+  </div>
+  <p class="caption">Service picker for SAA. Start from the AI services list in the AWS console docs, e.g. <a href="https://docs.aws.amazon.com/rekognition/latest/dg/what-is.html" target="_blank" rel="noopener">What is Amazon Rekognition?</a> and <a href="https://docs.aws.amazon.com/sagemaker/latest/dg/whatis.html" target="_blank" rel="noopener">What is Amazon SageMaker?</a>.</p>
+</div>
+
+<div class="exam-skip"><strong class="label">Out of scope / low value</strong> Amazon Personalize (recommendations). Know the name exists; do not deep-dive recipes or campaigns for SAA.</div>
+
+<h2>Use cases</h2>
+<p><strong>Moderation:</strong> User uploads → Rekognition content moderation → store or reject.</p>
+<p><strong>Call analytics:</strong> Transcribe → Comprehend for sentiment → dashboard.</p>
+<p><strong>Accessibility:</strong> Polly reads articles aloud; Translate for locales.</p>
+<p><strong>Forms:</strong> Textract on invoices into structured fields (not Rekognition — that is scenes/faces).</p>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem language</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Detect faces / objects / unsafe images</td><td>Rekognition</td><td>Textract</td></tr>
+    <tr><td>OCR forms, handwriting, tables from PDFs</td><td>Textract</td><td>Rekognition</td></tr>
+    <tr><td>Meeting audio to text</td><td>Transcribe</td><td>Polly</td></tr>
+    <tr><td>IVR spoken replies from text</td><td>Polly</td><td>Transcribe</td></tr>
+    <tr><td>Build a conversational bot</td><td>Lex</td><td>SageMaker by default</td></tr>
+    <tr><td>Own training data + custom algorithm</td><td>SageMaker</td><td>Rekognition Custom Labels only when labels-on-images fits</td></tr>
+    <tr><td>Product recommendations engine deep dive</td><td>Skip for SAA (Personalize)</td><td>Spending study time here</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — OCR vs vision</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Extract line items and handwritten totals from scanned invoices into JSON.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Rekognition celebrity recognition.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Amazon Textract.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Polly.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Personalize.</div>
+</div>
+
+<h2>Case study 2 — speech pipeline</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Support calls must become text, then Spanish for analysts, then a spoken summary for accessibility.</p>
+  <div class="opt win"><strong class="tag">A — correct</strong> Transcribe → Translate → Polly.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Only Rekognition.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Lex without transcription of archived calls.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> SageMaker mandatory for each step.</div>
+</div>
+
+<h2>Case study 3 — custom model</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Data scientists bring a proprietary PyTorch model, need managed training on GPUs and an HTTPS endpoint.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Only Comprehend.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Amazon SageMaker training jobs + endpoints.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Lex intents.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Personalize as the generic ML platform.</div>
+</div>
+
+<h2>Tricky points</h2>
+<p><strong>Rekognition ≠ Textract.</strong> Pictures of things vs reading documents.</p>
+<p><strong>Transcribe ≠ Polly.</strong> Opposite directions.</p>
+<p><strong>Lex</strong> is NLU chatbots; it is not the general “train any model” answer.</p>
+<p><strong>Personalize:</strong> treat as out of scope / low value for SAA study time.</p>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/rekognition/latest/dg/what-is.html" target="_blank" rel="noopener">Amazon Rekognition</a></li>
+  <li><a href="https://docs.aws.amazon.com/textract/latest/dg/what-is.html" target="_blank" rel="noopener">Amazon Textract</a></li>
+  <li><a href="https://docs.aws.amazon.com/transcribe/latest/dg/what-is-transcribe.html" target="_blank" rel="noopener">Amazon Transcribe</a></li>
+  <li><a href="https://docs.aws.amazon.com/polly/latest/dg/what-is.html" target="_blank" rel="noopener">Amazon Polly</a></li>
+  <li><a href="https://docs.aws.amazon.com/lex/latest/dg/what-is.html" target="_blank" rel="noopener">Amazon Lex</a></li>
+  <li><a href="https://docs.aws.amazon.com/sagemaker/latest/dg/whatis.html" target="_blank" rel="noopener">Amazon SageMaker</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/lambda.html">Wire ML APIs from Lambda</a>
+  <a href="../learn/analytics.html">Forecast vs warehouse context</a>
+  <a href="../exam/out-of-scope.html">Out of scope list</a>
+</div>

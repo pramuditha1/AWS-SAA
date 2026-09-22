@@ -1,0 +1,146 @@
+<h1>CloudWatch and CloudTrail — is it healthy, and who touched it?</h1>
+<div class="meta-row"><span class="pill must">Must-know</span><span class="pill domain">Domains 1 &amp; 2 · monitor vs audit</span></div>
+<p class="lede">CloudWatch answers “how is this resource doing?” with metrics, logs, and alarms. CloudTrail answers “who did what, when?” with an API audit history. On the exam those two questions must not get mixed up.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Without metrics you scale late and debug blind. Without an audit trail you cannot prove who deleted a bucket or opened a security group. Operations and compliance both need evidence — different kinds.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p><strong>Amazon CloudWatch</strong> collects metrics, stores logs, fires alarms, and can run synthetic checks. <strong>AWS CloudTrail</strong> records API activity (management events by default; data events optional). <strong>X-Ray</strong> traces requests across services when the stem is distributed latency.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>Metrics and log groups are <strong>Regional</strong> (dashboards can show many Regions). CloudTrail can be a multi-Region or organization trail delivering files to an S3 bucket you choose.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>Metric vs log · alarm actions · CloudWatch Agent (memory!) · Logs Insights · subscription filters · trail to S3 · management vs data events · CloudWatch vs CloudTrail fork.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>Two different questions</h3>
+  <p><strong>Performance:</strong> “Is CPU above 80%?” → CloudWatch metric + alarm. <strong>Audit:</strong> “Who terminated that instance?” → CloudTrail event. Same console family in people’s heads; different services on the exam.</p>
+</div>
+
+<p><strong>Metric</strong> — a number over time (CPUUtilization, request count). Default EC2 metrics do <strong>not</strong> include memory or disk used — install the <strong>CloudWatch Agent</strong> (or push a custom metric).</p>
+<p><strong>Alarm</strong> — watches a metric (or math/composite) and can notify SNS, scale an ASG, or stop/reboot/recover an instance.</p>
+<p><strong>Log group / stream</strong> — containers for log events. Lambda and many AWS services send logs here automatically; EC2 needs the agent.</p>
+<p><strong>Trail</strong> — configuration that delivers CloudTrail events to S3 (and optionally CloudWatch Logs) for retention beyond the console’s default history.</p>
+
+<h2>How monitoring and audit fit together (from AWS docs)</h2>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  app[App_or_AWS_service] --> metrics[CloudWatch_metrics]
+  app --> logs[CloudWatch_Logs]
+  metrics --> alarm[Alarm]
+  alarm --> sns[SNS_or_ASG]
+  api[API_calls] --> trail[CloudTrail]
+  trail --> s3[S3_audit_bucket]
+  </div>
+  <p class="caption">Conceptual split. See <a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/WhatIsCloudWatch.html" target="_blank" rel="noopener">What is Amazon CloudWatch?</a> and <a href="https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-user-guide.html" target="_blank" rel="noopener">What is AWS CloudTrail?</a>.</p>
+</div>
+
+<h2>CloudWatch — metrics, logs, alarms</h2>
+<p>Default EC2 metrics arrive every 5 minutes (1 minute with detailed monitoring). Custom metrics use <code>PutMetricData</code>. <strong>Metric filters</strong> turn log patterns (for example ERROR counts) into metrics you can alarm on.</p>
+<p><strong>Logs Insights</strong> runs queries against log groups. <strong>Subscription filters</strong> stream logs in near real time to Lambda, Kinesis, or Firehose (batch export to S3 is slower — different tool).</p>
+<p><strong>Synthetics canaries</strong> are scripts that hit your URL on a schedule — “is the homepage up from the outside?”</p>
+
+<h2>CloudTrail — management vs data events</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Type</th><th>Records</th><th>Default</th></tr></thead>
+  <tbody>
+    <tr><td>Management events</td><td>Control plane (CreateBucket, RunInstances)</td><td>On (console history ~90 days)</td></tr>
+    <tr><td>Data events</td><td>Data plane (S3 object-level, Lambda invoke)</td><td>Off — extra cost; enable when needed</td></tr>
+    <tr><td>Insights</td><td>Unusual API activity patterns</td><td>Optional</td></tr>
+  </tbody>
+</table></div>
+<p>Use a multi-Region trail (or organization trail) to S3 for long-term, immutable-ish storage. Turn on log file integrity validation when the stem cares about tampering. Query with Athena on the S3 files, or CloudTrail Lake.</p>
+
+<h2>Use case 1 — scale on CPU, alert on errors</h2>
+<p><strong>Need:</strong> ASG grows when busy; ops gets SMS when the app logs ERROR spikes.</p>
+<p><strong>Design:</strong> CloudWatch alarm on CPU → ASG policy. Agent or app logs → log group → metric filter on ERROR → alarm → SNS.</p>
+
+<h2>Use case 2 — compliance audit store</h2>
+<p><strong>Need:</strong> Keep API history for years; prove who changed IAM.</p>
+<p><strong>Design:</strong> Organization trail → central S3 bucket with Object Lock / restricted access. Optional CloudWatch Logs for recent search.</p>
+
+<h2>Use case 3 — memory-based scaling</h2>
+<p><strong>Need:</strong> Scale when RAM is high. Default metrics are not enough.</p>
+<p><strong>Design:</strong> CloudWatch Agent custom memory metric → alarm → ASG. Do not pick “enable detailed monitoring” alone — that only shortens the interval for default metrics.</p>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem language</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>CPU / latency / error rate / scale out</td><td>CloudWatch metrics + alarms</td><td>CloudTrail</td></tr>
+    <tr><td>Who deleted / who called which API</td><td>CloudTrail</td><td>CloudWatch metrics</td></tr>
+    <tr><td>Memory or free disk on EC2</td><td>CloudWatch Agent / custom metric</td><td>Detailed monitoring alone</td></tr>
+    <tr><td>Query application logs</td><td>Logs Insights</td><td>CloudTrail event history</td></tr>
+    <tr><td>Real-time log ship to S3/OpenSearch</td><td>Subscription filter (+ Firehose)</td><td>CreateExportTask only</td></tr>
+    <tr><td>Trace a slow microservice request</td><td>X-Ray</td><td>Only CPU graphs</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — who terminated?</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">An instance disappeared. Security asks which IAM principal called TerminateInstances yesterday.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> CloudWatch CPU graphs. They show load, not identity.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> CloudTrail event history (or the trail’s S3 logs / Athena).</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> VPC Flow Logs alone — they show IP traffic, not the AWS API caller.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Config recorder without CloudTrail — Config knows configuration state, not the full API “who.”</div>
+</div>
+
+<h2>Case study 2 — memory alarm</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Scale the ASG when memory exceeds 70%. Instances already have detailed monitoring enabled.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Alarm on the default MemoryUtilization metric — it does not exist by default.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Install CloudWatch Agent, publish memory metric, alarm → ASG.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> CloudTrail Insights on RunInstances.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Only enable Synthetics canaries.</div>
+</div>
+
+<h2>Case study 3 — long-term API logs</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Auditors need seven years of management API history across all Regions, queryable with SQL.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Rely on the console’s 90-day Event history only.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Multi-Region (or org) trail to S3, then Athena (or CloudTrail Lake).</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> CloudWatch metrics retention settings.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Enable only S3 data events and skip management events.</div>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>Detailed monitoring ≠ memory.</strong> It changes default metric frequency, not which OS metrics exist.</p>
+<p><strong>CloudTrail is not a performance dashboard.</strong> High API volume Insights ≠ “CPU is hot.”</p>
+<p><strong>Export vs subscribe.</strong> Batch export to S3 can lag hours. Near real-time needs a subscription filter.</p>
+<p><strong>EventBridge</strong> can react to CloudWatch alarm state changes and many AWS events — useful glue, not a replacement for trails or metrics.</p>
+
+<div class="exam-skip"><strong class="label">Light touch on the exam</strong> Contributor Insights math, exact Logs Insights syntax, CloudTrail Lake pricing tiers.</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/WhatIsCloudWatch.html" target="_blank" rel="noopener">What is Amazon CloudWatch?</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/WhatIsCloudWatchLogs.html" target="_blank" rel="noopener">What is Amazon CloudWatch Logs?</a></li>
+  <li><a href="https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-user-guide.html" target="_blank" rel="noopener">What is AWS CloudTrail?</a></li>
+  <li><a href="https://docs.aws.amazon.com/xray/latest/devguide/aws-xray.html" target="_blank" rel="noopener">What is AWS X-Ray?</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/elb-asg.html">Alarms and Auto Scaling</a>
+  <a href="../learn/governance.html">Config and Organizations</a>
+  <a href="../learn/security.html">GuardDuty and detection</a>
+  <a href="../learn/messaging.html">EventBridge</a>
+</div>

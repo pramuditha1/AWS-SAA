@@ -1,0 +1,222 @@
+<h1>Amazon EC2 — a virtual server you rent by the hour</h1>
+<div class="meta-row"><span class="pill must">Must-know</span><span class="pill domain">Domains 3 &amp; 4 · Performance · Cost</span></div>
+<p class="lede">Amazon EC2 is a virtual machine in the cloud. You choose the operating system, the size, how you pay, and which subnet it lives in. On the exam you match a workload to a family, a purchase option, and a multi-AZ design — not every instance type name.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Sometimes you need a real operating system you control: custom software, long-running processes, or a shape of CPU and memory that a managed service does not offer. You still need that machine to be replaceable, cheap enough, and not a single point of failure.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p>An <strong>EC2 instance</strong> is a rented virtual server. AWS owns the hardware. You pick an <strong>AMI</strong> (Amazon Machine Image — the template for the OS and root disk), an instance type, a subnet, security groups, and usually an IAM role. You are responsible for the guest OS and the apps on it.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>EC2 is <strong>Regional</strong>. Each instance lives in one subnet, so one <strong>Availability Zone</strong>. High availability means several instances in several AZs — never “one big server with an Elastic IP.”</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>AMI · instance family · purchase option (On-Demand / Spot / Savings Plans) · placement group · IAM instance profile + IMDS · EBS vs instance store. Those ideas cover almost every SAA EC2 question.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>An instance in one breath</h3>
+  <p>You launch from an AMI into a subnet. AWS attaches a network interface (ENI) in that AZ, attaches storage, and boots the OS. Your app talks to AWS APIs using temporary credentials from the <strong>instance metadata service</strong> (IMDS) if you attached an IAM role — not long-lived keys baked into the disk.</p>
+</div>
+
+<p><strong>AMI</strong> — a Region-scoped template: OS, root volume layout, and sometimes Marketplace software. Same golden image in another Region means <strong>copy the AMI</strong> (you cannot reuse the AMI ID across Regions).</p>
+<p><strong>Instance type</strong> — family + size (for example <code>m7g.xlarge</code>). Family is the personality: balanced, compute-heavy, memory-heavy, burstable, GPU, and so on.</p>
+<p><strong>User data</strong> — a small bootstrap script (about 16 KB max) that usually runs once at first boot. Do not put passwords there; use Secrets Manager or SSM Parameter Store with the instance role.</p>
+<p><strong>EBS vs instance store</strong> — EBS volumes survive stop. Instance store is local disk that dies when the instance stops or the host fails. Durable data belongs on EBS, EFS, S3, or a database — not only on instance store.</p>
+
+<h2>How an instance comes up (from AWS docs)</h2>
+<p>AWS describes launch as: pick AMI and type → place in a subnet → attach networking and storage → boot → optionally run user data. The Mermaid below follows that idea.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  ami[AMI_template] --> launch[Launch_request]
+  lt[Launch_template] --> launch
+  launch --> subnet[Subnet_one_AZ]
+  subnet --> eni[ENI_and_SG]
+  launch --> disk[EBS_or_instance_store]
+  launch --> imds[IMDS_role_creds]
+  launch --> ud[User_data_first_boot]
+  </div>
+  <p class="caption">Follows the launch model in <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-lifecycle.html" target="_blank" rel="noopener">Instance lifecycle</a> and <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/AMIs.html" target="_blank" rel="noopener">Amazon Machine Images</a>. Open those pages for AWS’s official diagrams.</p>
+</div>
+
+<h2>Instance families — pick the shape, not the marketing name</h2>
+<p>You do not need every generation. You need why each family exists, because stems hide the answer in the workload description.</p>
+
+<div class="table-wrap"><table>
+  <thead><tr><th>Family</th><th>In plain English</th><th>Typical stem</th></tr></thead>
+  <tbody>
+    <tr><td>T (burstable)</td><td>Cheap baseline CPU; credits for short spikes</td><td>Dev/test, low and spiky traffic</td></tr>
+    <tr><td>M (general)</td><td>Balanced CPU and RAM</td><td>Default app servers</td></tr>
+    <tr><td>C (compute)</td><td>More CPU per dollar</td><td>Batch, encode, high request rate, little RAM</td></tr>
+    <tr><td>R (memory)</td><td>More RAM per vCPU</td><td>Large heaps, in-memory caches you run yourself</td></tr>
+    <tr><td>I / D (storage)</td><td>Fast or dense local disks</td><td>Local NoSQL scratch, HDFS — not durable databases of record</td></tr>
+    <tr><td>G / P / Inf</td><td>GPU or accelerators</td><td>ML, video, graphics</td></tr>
+  </tbody>
+</table></div>
+
+<p><strong>Graviton</strong> types end in <code>g</code> after the generation (<code>m7g</code>, <code>c7g</code>, <code>t4g</code>). They are AWS Arm CPUs. For Linux workloads that are not locked to x86 licenses, Graviton is often the cost/performance answer.</p>
+<p>T-series <strong>CPU credits</strong> work for bursty load. Sustained high CPU under an Auto Scaling target means you wanted M or C — not Unlimited T forever as a silent bill.</p>
+
+<h2>Purchase options — how you pay (high level for SAA)</h2>
+<p>Three ideas cover most stems. The rest are edge cases.</p>
+
+<div class="table-wrap"><table>
+  <thead><tr><th>Option</th><th>In plain English</th><th>Exam reflex</th></tr></thead>
+  <tbody>
+    <tr><td>On-Demand</td><td>List price, no commitment, no interruption</td><td>Unknown load, or the HA floor in a mixed ASG</td></tr>
+    <tr><td>Savings Plans</td><td>Commit to $/hour for 1 or 3 years; discount applies automatically</td><td>Steady spend; Compute SP also covers Fargate/Lambda flexibility</td></tr>
+    <tr><td>Spot</td><td>Spare capacity, deep discount; AWS can reclaim (~2 minute notice)</td><td>Stateless fleets, batch with checkpoints, mixed with On-Demand</td></tr>
+  </tbody>
+</table></div>
+
+<p><strong>Reserved Instances</strong> still appear: Standard RI ≈ maximum discount on a known shape; Convertible RI ≈ discount with exchange rights. For SAA, if the stem wants flexibility across families or Lambda too, prefer <strong>Compute Savings Plans</strong> over a locked Standard RI.</p>
+<p><strong>Dedicated Hosts</strong> — physical server visibility for per-socket licenses (Windows/SQL/Oracle). <strong>Capacity Reservations</strong> guarantee On-Demand capacity in an AZ; they do not discount by themselves.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  q{{What does the stem want}}
+  q -->|unknown or HA floor| od[On_Demand]
+  q -->|steady spend flexible| sp[Compute_Savings_Plan]
+  q -->|fault tolerant can die| spot[Spot_plus_OnDemand_floor]
+  q -->|per_socket license| dh[Dedicated_Host]
+  </div>
+  <p class="caption">Decision view for SAA. Details: <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-purchasing-options.html" target="_blank" rel="noopener">Instance purchasing options</a> and <a href="https://docs.aws.amazon.com/savingsplans/latest/userguide/what-is-savings-plans.html" target="_blank" rel="noopener">Savings Plans</a>.</p>
+</div>
+
+<h2>Placement groups — latency versus blast radius</h2>
+<p>A placement group asks the scheduler <em>where</em> instances may land. It is not Multi-AZ HA by itself.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  cluster[Cluster] --> sameAZ[Same_AZ_low_latency]
+  spread[Spread] --> racks[Distinct_hardware_max_7_per_AZ]
+  partition[Partition] --> hadoop[Replica_aware_big_data]
+  </div>
+  <p class="caption">Follows <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/placement-groups.html" target="_blank" rel="noopener">Placement groups</a>. Cluster = performance; spread = small critical fleets; partition = Hadoop/Cassandra-style replica isolation.</p>
+</div>
+
+<p><strong>Cluster</strong> — pack close (same AZ) for lowest latency / HPC. Shared failure domain. Never the HA answer for a web tier.</p>
+<p><strong>Spread</strong> — distinct hardware; AWS documents up to <strong>seven running instances per AZ</strong>. Good for a few critical nodes across AZs; wrong for a 50-node Hadoop fleet.</p>
+<p><strong>Partition</strong> — groups of racks with a partition index. The big-data answer when software places replicas apart.</p>
+
+<h2>Stop, terminate, hibernate</h2>
+<p><strong>Stop</strong> keeps EBS, clears RAM, and usually drops the public IPv4 (unless you use an Elastic IP). <strong>Terminate</strong> deletes the instance (root volume often goes with it). <strong>Hibernate</strong> writes RAM to the encrypted root EBS so start resumes warm state. Hibernate needs an encrypted root large enough for RAM — it is not a backup and not Multi-AZ.</p>
+
+<h2>Use case 1 — stateless web API, cheap and highly available</h2>
+<p><strong>Need:</strong> Survive AZ loss, cut cost, little ops for replacements.</p>
+<p><strong>Design:</strong> Application Load Balancer + Auto Scaling group in 2+ AZs. Launch template with Graviton general-purpose types. Mixed instances: On-Demand floor + Spot for peaks. Compute Savings Plan on the daytime baseline.</p>
+<div class="mermaid">
+flowchart LR
+  user[Users] --> alb[ALB]
+  alb --> asg[ASG_2plus_AZs]
+  asg --> od[OnDemand_floor]
+  asg --> spot[Spot_peak]
+</div>
+
+<h2>Use case 2 — tightly coupled HPC</h2>
+<p><strong>Need:</strong> Lowest node-to-node latency for MPI.</p>
+<p><strong>Design:</strong> Cluster placement group in one AZ, compute or HPC family, often <strong>Elastic Fabric Adapter (EFA)</strong>. Not Multi-AZ — you traded blast radius for speed.</p>
+<div class="mermaid">
+flowchart LR
+  nodes[EC2_nodes] --> cluster[Cluster_placement]
+  cluster --> efa[EFA_MPI]
+</div>
+
+<h2>Use case 3 — resume a long warm-up overnight</h2>
+<p><strong>Need:</strong> Models take 25 minutes to load into RAM; pause at night without a cold boot.</p>
+<p><strong>Design:</strong> Encrypted EBS root sized for RAM + OS, hibernate on a supported family. Stop alone loses RAM; snapshots do not capture RAM.</p>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem language</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Survive AZ failure, least ops, cut cost</td><td>Multi-AZ ASG + ALB; Savings Plan + Spot mix</td><td>One large Reserved instance + Elastic IP</td></tr>
+    <tr><td>Microsecond latency between nodes / MPI</td><td>Cluster placement + EFA</td><td>Spread or Multi-AZ for that fabric</td></tr>
+    <tr><td>Few critical brokers, rack isolation</td><td>Spread (watch 7/AZ)</td><td>Cluster</td></tr>
+    <tr><td>HDFS / Cassandra replica isolation at scale</td><td>Partition placement</td><td>Spread (cap) or cluster (shared fate)</td></tr>
+    <tr><td>Same image in another Region for DR</td><td>Copy AMI (+ KMS in destination)</td><td>Reuse AMI ID</td></tr>
+    <tr><td>Resume RAM overnight</td><td>Hibernate + encrypted root</td><td>Stop/start or EBS snapshot alone</td></tr>
+    <tr><td>App calls AWS APIs, no keys on disk</td><td>Instance profile + IMDSv2</td><td>Access keys in user data</td></tr>
+    <tr><td>Per-socket license</td><td>Dedicated Host</td><td>Ordinary shared tenancy</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — cost, HA, Linux web tier</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A stateless HTTPS API on Amazon Linux. Daytime traffic is steady; evenings triple for four hours. Must survive AZ failure, stay cost-effective, and replace unhealthy instances without tickets. What meets the requirements?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> One On-Demand <code>m6i.8xlarge</code> in a single AZ with an Elastic IP and a page for a human to launch a second instance.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Auto Scaling of T-family, all Spot, one AZ, Standard RIs for <code>t3.xlarge</code>.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> ALB + ASG across 2+ AZs, Graviton types, On-Demand floor + Spot for the peak, Compute Savings Plan on the daytime baseline.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Cluster placement of C-family behind an NLB in one AZ “for performance.”</div>
+  <p>A is a single point of failure. B fails AZ, sustained CPU on T, and all-Spot with no floor. D optimizes inter-node latency the API does not need and fails HA. C is the default SAA web pattern.</p>
+</div>
+
+<h2>Case study 2 — hibernate prerequisites</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A simulation engine takes 25 minutes to load models into RAM. Analysts pause overnight but need models still in memory in the morning. Root volume is unencrypted gp3 today. What works?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Stop at night and start in the morning on a larger type so the OS boots faster.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Encrypt the root (copy AMI/volume), size it for RAM + OS, enable hibernation on a supported family, hibernate overnight.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Snapshot each evening and restore a new instance at 08:00.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Move the engine to Lambda with models in the deployment package.</div>
+  <p>Stop and snapshots discard or never capture RAM. Lambda’s time and size limits do not fit. Hibernate requires an encrypted root with enough space — that is B.</p>
+</div>
+
+<h2>Case study 3 — placement for HDFS</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">HDFS on EC2 must place replicas so one rack failure does not lose two copies of the same block. The cluster will exceed 50 data nodes. Which placement fits?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> One cluster placement group for all nodes.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Spread across three AZs so every node is unique hardware.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> Partition placement group; configure HDFS rack awareness with the partition index.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> No placement group; pin each node to Dedicated Hosts in a spreadsheet.</div>
+  <p>Cluster shares fate. Spread’s seven-per-AZ cap cannot hold 50 nodes. Partition is the documented big-data pattern.</p>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>User data is bootstrap, not a CM platform.</strong> Bake a golden AMI; keep user data short. Compiling from source on every scale-out is the wrong “fast launch” answer.</p>
+<p><strong>AMI IDs do not cross Regions.</strong> Copy them (and the KMS key story) for DR.</p>
+<p><strong>Spot can be reclaimed.</strong> Plan for the ~2 minute notice. Never put the only copy of critical state on one Spot node. Mix Spot with an On-Demand floor.</p>
+<p><strong>Hibernate ≠ stop ≠ snapshot.</strong> Hibernate keeps RAM (encrypted root). Stop keeps EBS only. Snapshot backs up EBS for later restore — no RAM.</p>
+<p><strong>IMDSv2</strong> — require a session token; use hop limit 1 to reduce SSRF risk from containers. Role credentials come from IMDS; app secrets come from Secrets Manager / SSM.</p>
+<p><strong>Cluster placement is one AZ</strong> — performance, not HA. <strong>Spread</strong> is small fleets. <strong>Partition</strong> is replica-aware scale.</p>
+
+<div class="exam-skip"><strong class="label">Light touch on the exam</strong> Every instance generation letter, RI Marketplace trading bots, deep EFA tuning. Know the names; do not deep-dive.</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/concepts.html" target="_blank" rel="noopener">What is Amazon EC2?</a></li>
+  <li><a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-lifecycle.html" target="_blank" rel="noopener">Instance lifecycle</a></li>
+  <li><a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-types.html" target="_blank" rel="noopener">Instance types</a></li>
+  <li><a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-purchasing-options.html" target="_blank" rel="noopener">Purchasing options</a></li>
+  <li><a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-spot-instances.html" target="_blank" rel="noopener">Spot Instances</a></li>
+  <li><a href="https://docs.aws.amazon.com/savingsplans/latest/userguide/what-is-savings-plans.html" target="_blank" rel="noopener">Savings Plans</a></li>
+  <li><a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/placement-groups.html" target="_blank" rel="noopener">Placement groups</a></li>
+  <li><a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Hibernate.html" target="_blank" rel="noopener">Hibernate an instance</a></li>
+  <li><a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html" target="_blank" rel="noopener">Instance metadata and user data</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/elb-asg.html">Load balancers and Auto Scaling</a>
+  <a href="../learn/storage.html">EBS, EFS, FSx</a>
+  <a href="../learn/vpc.html">VPC</a>
+  <a href="../learn/cost.html">Cost optimization</a>
+  <a href="../compare/compute.html">Compute picker</a>
+</div>

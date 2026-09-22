@@ -1,0 +1,215 @@
+<h1>Elastic Load Balancing and Auto Scaling — many servers, one door</h1>
+<div class="meta-row"><span class="pill must">Must-know</span><span class="pill domain">Domains 2 &amp; 3 · Resilient · Performance</span></div>
+<p class="lede">A load balancer gives users one address while many instances come and go. Auto Scaling grows, shrinks, and replaces those instances. Together they are the default highly available EC2 pattern on SAA-C03 — if you pick the right load balancer and let its health checks drive the group.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>One server dies, gets slow, or sits in one AZ. Users should not notice. You need a front door that skips unhealthy targets, and a control loop that adds or removes servers without a ticket.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p><strong>Elastic Load Balancing (ELB)</strong> spreads traffic across targets. <strong>EC2 Auto Scaling</strong> keeps a fleet at the right size using a launch template. You pay for the balancers and instances; the Auto Scaling control plane itself has no separate “ASG fee.”</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>Load balancers live in subnets you choose (public for internet-facing, private for internal). Auto Scaling launches instances into the AZs those subnets cover. Health and scale decisions are Regional for the service, but each instance still sits in one AZ.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>ALB vs NLB vs Gateway Load Balancer · target group · listener rules · ASG min/desired/max · launch template · ELB health checks · scaling policies. Classic Load Balancer is legacy — almost never a green-field answer.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>The request path in one breath</h3>
+  <p>A client hits a load balancer DNS name. A <strong>listener</strong> matches protocol and port (and maybe host or path). Traffic goes to a <strong>target group</strong>. The target group health-checks each target. Unhealthy targets stop getting new work. Auto Scaling registers new instances with that target group when you attach them.</p>
+</div>
+
+<p><strong>Internet-facing vs internal</strong> — public balancer in public subnets with a route to an internet gateway; internal balancer has only private IPs for tier-to-tier traffic inside the VPC.</p>
+<p><strong>Target types</strong> — instances, IP addresses, Lambda (ALB), or another load balancer in some designs. One target group does not mix instance and Lambda.</p>
+<p><strong>Deregistration delay</strong> (connection draining) — when a target leaves, existing requests can finish for a grace period (often default 300 seconds) while new requests go elsewhere.</p>
+<p><strong>Cross-zone load balancing</strong> — each balancer node can send to healthy targets in every AZ so uneven instance counts still get even load. ALB defaults on; know the idea for NLB stems where one AZ has fewer targets.</p>
+
+<h2>How traffic and scaling work together (from AWS docs)</h2>
+<p>AWS’s mental model: clients → load balancer → healthy targets; Auto Scaling changes desired capacity from policies, then waits for launch, warmup, and health before counting an instance as in service.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  clients[Clients] --> lb[Load_balancer]
+  lb --> tg[Target_group]
+  tg -->|healthy| ec2a[EC2_AZ_a]
+  tg -->|healthy| ec2b[EC2_AZ_b]
+  cw[CloudWatch_metric] --> policy[Scaling_policy]
+  policy --> asg[Auto_Scaling_group]
+  asg --> ec2a
+  asg --> ec2b
+  tg -->|ELB_health| asg
+  </div>
+  <p class="caption">Combines the ELB target-group model in <a href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html" target="_blank" rel="noopener">What is an Application Load Balancer?</a> with <a href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/what-is-amazon-ec2-auto-scaling.html" target="_blank" rel="noopener">What is Amazon EC2 Auto Scaling?</a>. Open those pages for AWS’s official overviews.</p>
+</div>
+
+<h2>ALB vs NLB vs Gateway Load Balancer</h2>
+<p>Stems often sound like networking. The balancer type is the answer. Memorize one sentence each.</p>
+
+<div class="table-wrap"><table>
+  <thead><tr><th>Type</th><th>Layer</th><th>In plain English</th><th>Typical stem</th></tr></thead>
+  <tbody>
+    <tr><td>Application Load Balancer (ALB)</td><td>Layer 7 — HTTP/HTTPS, HTTP/2, gRPC, WebSocket</td><td>Understands URLs, host headers, paths; works with WAF, Cognito/OIDC, Lambda targets</td><td>Microservices paths, host-based SaaS, need WAF</td></tr>
+    <tr><td>Network Load Balancer (NLB)</td><td>Layer 4 — TCP, UDP, TLS</td><td>Ultra-fast connections; static IP / Elastic IP per AZ; preserves source IP; PrivateLink front door</td><td>Allowlisted IPs, UDP games, millions of connections, non-HTTP TCP</td></tr>
+    <tr><td>Gateway Load Balancer (GWLB)</td><td>Layer 3/4 GENEVE</td><td>Steers packets through firewall / IDS appliance fleets without rewriting the app</td><td>“Inspect all traffic with third-party appliances”</td></tr>
+    <tr><td>Classic</td><td>Legacy mix</td><td>Old EC2-Classic era</td><td>Almost never for new designs</td></tr>
+  </tbody>
+</table></div>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  q{{What does the question need}}
+  q -->|HTTP path or host or WAF| alb[ALB]
+  q -->|static IP or UDP or PrivateLink| nlb[NLB]
+  q -->|inline firewall fleet| gwlb[GWLB]
+  q -->|path plus static IP| both[NLB_in_front_of_ALB]
+  </div>
+  <p class="caption">Product choice overview. Compare features in <a href="https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/what-is-load-balancing.html" target="_blank" rel="noopener">What is Elastic Load Balancing?</a>.</p>
+</div>
+
+<p><strong>ALB</strong> — terminate TLS with ACM, attach WAF, route <code>/api</code> to one target group and <code>/static</code> to another. Can invoke Lambda as a target for simple HTTPS fronts.</p>
+<p><strong>NLB</strong> — partner firewalls allowlist Elastic IPs that do not change as you scale. UDP lives here. WAF does not attach directly to NLB (use ALB or CloudFront for WAF).</p>
+<p><strong>GWLB</strong> — not “another HTTP balancer.” Route tables send traffic to a GWLB endpoint; appliances see original packets over GENEVE. Wrong tool for ordinary websites.</p>
+
+<h2>Listeners, stickiness, and TLS</h2>
+<p>TLS usually ends at the balancer with an ACM certificate (least ops). End-to-end TLS means HTTPS to the instance with a cert you manage. If the instance must see the client certificate, think NLB TLS pass-through or TCP — not normal ALB termination.</p>
+<p><strong>Stickiness</strong> (session affinity) pins a client to one target. It papers over sessions stored in process memory. Prefer sessions in ElastiCache, DynamoDB, or a JWT. Stickiness is not high availability — if that target dies, those sessions still die.</p>
+
+<h2>Auto Scaling — size, health, and cost</h2>
+<p>You set <strong>minimum</strong>, <strong>desired</strong>, and <strong>maximum</strong> capacity. A <strong>launch template</strong> (not the old launch configuration) versions AMI, type, security groups, user data, and IAM profile. <strong>Mixed instances policies</strong> combine On-Demand and Spot across several types so one Spot pool drying up does not take the service down.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  metric[CPU_or_ALB_requests] --> track[Target_tracking]
+  track --> desired[Desired_capacity]
+  desired --> launch[Launch_template]
+  launch --> warm[Warmup]
+  warm --> elb[ELB_health_check]
+  elb --> ok[InService]
+  fail[Failed_health] --> replace[Replace_instance]
+  </div>
+  <p class="caption">Follows scaling and health concepts in <a href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-target-tracking.html" target="_blank" rel="noopener">Target tracking scaling</a> and <a href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-add-elb-healthcheck.html" target="_blank" rel="noopener">Use Elastic Load Balancing health checks</a>.</p>
+</div>
+
+<p><strong>Scaling policies:</strong> <strong>Target tracking</strong> (“keep CPU at 50%” or “ALB requests per target at 1000”) is the default. Step scaling for non-linear jumps. Scheduled for known rush hours. Predictive when history shows a daily pattern and reactive scale-out is always late.</p>
+<p><strong>Health is a contract.</strong> EC2 status checks catch a dead host. They do not catch “nginx returns 502.” Attach the target group and enable <strong>ELB health checks</strong> on the ASG so a failing <code>/health</code> is replaced. Set the health check grace period longer than app boot or you kill slow starters. Lifecycle hooks give almost-stateless apps time to drain before terminate.</p>
+
+<h2>Use case 1 — HTTP microservices with WAF</h2>
+<p><strong>Need:</strong> Host and path routing, WAF, Multi-AZ, least ops.</p>
+<p><strong>Design:</strong> One internet-facing ALB, listener rules by host/path, WAF on the ALB (or CloudFront then ALB), ASG in private subnets across 2+ AZs, ELB health checks, deregistration delay.</p>
+<div class="mermaid">
+flowchart LR
+  user[User] --> alb[ALB_plus_WAF]
+  alb -->|path_api| asg[ASG_EC2]
+  alb -->|path_hooks| lambda[Lambda_target]
+</div>
+
+<h2>Use case 2 — partner needs allowlisted IPs</h2>
+<p><strong>Need:</strong> TCP or UDP, static IPs, huge connection count.</p>
+<p><strong>Design:</strong> NLB with Elastic IPs per AZ. If you also need HTTP path routing, put NLB in front of ALB.</p>
+<div class="mermaid">
+flowchart LR
+  partner[Partner_allowlist] --> nlb[NLB_Elastic_IPs]
+  nlb --> alb[ALB_optional]
+  alb --> targets[Targets]
+</div>
+
+<h2>Use case 3 — inspect all VPC traffic with appliances</h2>
+<p><strong>Need:</strong> Third-party firewall or IDS inline, without rewriting apps.</p>
+<p><strong>Design:</strong> Gateway Load Balancer + appliance Auto Scaling group; route tables send traffic to GWLB endpoints.</p>
+<div class="mermaid">
+flowchart LR
+  src[Source_subnet] --> ep[GWLB_endpoint]
+  ep --> gwlb[GWLB]
+  gwlb --> fw[Firewall_ASG]
+</div>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem language</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Host/path routing, WAF, HTTPS apps</td><td>ALB</td><td>NLB alone; Classic</td></tr>
+    <tr><td>Static IP allowlist, UDP, PrivateLink provider</td><td>NLB</td><td>ALB (IPs change; no UDP)</td></tr>
+    <tr><td>Inline third-party firewall / IDS fleet</td><td>GWLB</td><td>ALB/WAF for every packet</td></tr>
+    <tr><td>Path routing <em>and</em> static IP</td><td>NLB in front of ALB</td><td>Hoping ALB IPs stay fixed</td></tr>
+    <tr><td>Survive AZ loss, cut cost, least ops</td><td>ALB + multi-AZ ASG + mixed Spot/On-Demand + ELB health</td><td>One instance + Elastic IP</td></tr>
+    <tr><td>Scale-out always late for 09:00 rush</td><td>Scheduled or predictive + target tracking</td><td>Only step after CPU is already high</td></tr>
+    <tr><td>App returns 502 but ASG never replaces</td><td>Enable ELB health checks on the ASG</td><td>EC2 status checks alone</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — HTTP routing, WAF, Lambda target</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem"><code>app.example.com</code> is public. <code>/api/*</code> goes to an ASG of EC2 in private subnets. <code>/hooks</code> is a low-traffic function with no servers. Need WAF, survive AZ failure, keep ops light. Most cost-effective design?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> NLB with TCP. Attach WAF to the NLB. Register ASG and Lambda on one NLB target group.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> ALB with path rules: <code>/api/*</code> → ASG target group, <code>/hooks</code> → Lambda target group. WAF on the ALB. ASG in 2+ AZs with ELB health checks.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Two Classic Load Balancers and manual instance registration.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> GWLB in front of EC2 because “security inspection.”</div>
+  <p>WAF attaches to ALB/CloudFront, not NLB. NLB does not do path routing or Lambda targets the ALB way. GWLB is for appliance fleets, not HTTP path rules. B matches ALB’s job.</p>
+</div>
+
+<h2>Case study 2 — static IP and UDP</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A game server uses UDP. A partner firewall must allowlist fixed IPs. Connection rates are extreme. Path-based HTTP routing is not required. What do you use?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> ALB with HTTPS listeners and WAF.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> NLB with UDP listeners and Elastic IPs per AZ.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> GWLB because games need “gateways.”</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Classic Load Balancer with sticky sessions.</div>
+  <p>ALB is HTTP-family only. GWLB is appliance steering. NLB is the UDP + static IP answer.</p>
+</div>
+
+<h2>Case study 3 — unhealthy app, healthy EC2</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">An ASG sits behind an ALB. Instances pass EC2 status checks but return HTTP 500 on <code>/health</code>. Users keep hitting bad nodes. Desired capacity never changes. What is missing?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Switch to a cluster placement group.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Replace the ALB with an NLB so health checks become “stronger.”</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> Configure the ASG to use ELB health checks so failing target-group health replaces the instance.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Disable deregistration delay so bad nodes leave faster.</div>
+  <p>EC2 checks do not see application 500s. ELB health on the ASG is the fix. NLB does not magically fix HTTP health semantics. Draining affects leave behavior, not detection.</p>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>ALB ≠ NLB ≠ GWLB.</strong> Layer 7 HTTP features, Layer 4 static IP/UDP, and inline appliances are three different jobs.</p>
+<p><strong>ELB health vs EC2 health.</strong> Without ELB health on the ASG, a process crash that still pings the hypervisor looks “healthy.”</p>
+<p><strong>Stickiness is a crutch.</strong> Prefer external session state. Sticky + one sticky target dying still loses sessions.</p>
+<p><strong>Launch templates, not launch configs,</strong> for new designs — versioning and mixed On-Demand/Spot.</p>
+<p><strong>Grace period too short</strong> causes replace loops during slow boots. <strong>No deregistration delay</strong> drops in-flight requests on deploy.</p>
+<p><strong>PrivateLink endpoint services</strong> front with NLB in the provider VPC (ALB can sit behind that NLB if you need L7).</p>
+
+<div class="exam-skip"><strong class="label">Light touch on the exam</strong> Classic Load Balancer migration minutiae, every listener rule condition, exact cross-zone billing line items. Know the concepts; skip the trivia.</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/what-is-load-balancing.html" target="_blank" rel="noopener">What is Elastic Load Balancing?</a></li>
+  <li><a href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html" target="_blank" rel="noopener">Application Load Balancer</a></li>
+  <li><a href="https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html" target="_blank" rel="noopener">Network Load Balancer</a></li>
+  <li><a href="https://docs.aws.amazon.com/elasticloadbalancing/latest/gateway/introduction.html" target="_blank" rel="noopener">Gateway Load Balancer</a></li>
+  <li><a href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/what-is-amazon-ec2-auto-scaling.html" target="_blank" rel="noopener">What is Amazon EC2 Auto Scaling?</a></li>
+  <li><a href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-add-elb-healthcheck.html" target="_blank" rel="noopener">ELB health checks with Auto Scaling</a></li>
+  <li><a href="https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-target-tracking.html" target="_blank" rel="noopener">Target tracking scaling</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/ec2.html">EC2</a>
+  <a href="../learn/route53.html">Route 53</a>
+  <a href="../learn/vpc.html">VPC</a>
+  <a href="../learn/cloudfront.html">CloudFront and WAF</a>
+  <a href="../compare/compute.html">Compute picker</a>
+</div>

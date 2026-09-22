@@ -1,0 +1,138 @@
+<h1>Analytics — lake in S3, then pick the engine</h1>
+<div class="meta-row"><span class="pill should">Should-know</span><span class="pill domain">Domain 3 · Athena, Redshift, Glue, EMR, OpenSearch</span></div>
+<p class="lede">On SAA, analytics is a matching game. The data lake usually lives in <strong>S3</strong>. You then pick who queries it: serverless SQL (<strong>Athena</strong>), a warehouse (<strong>Redshift</strong>), Spark/Hadoop (<strong>EMR</strong> or <strong>Glue</strong>), or search (<strong>OpenSearch</strong>). Humans see results in <strong>QuickSight</strong>. <strong>Lake Formation</strong> governs who sees which columns.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Application databases are bad warehouses. You need a place for history, logs, and events — and tools that scan terabytes without melting the OLTP database.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p>A small family: S3 lake + Glue catalog, Athena, Redshift (+ Spectrum), Glue ETL, EMR, OpenSearch, Lake Formation, QuickSight. Streaming ingest often uses Kinesis/Firehose (covered under messaging).</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>Mostly <strong>Regional</strong>. Objects in S3; clusters and serverless query engines in a Region. QuickSight is a BI layer on top.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>Athena scan cost · Parquet · Glue catalog/crawlers · Redshift vs Athena · EMR when Spark is named · OpenSearch for full-text · Lake Formation grants · QuickSight dashboards.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>Lake first, engine second</h3>
+  <p>Land raw and curated files in S3. Register tables in the <strong>Glue Data Catalog</strong> (names, columns, formats, partitions). Athena, Spectrum, and EMR can share that catalog. Format matters: columnar <strong>Parquet/ORC</strong> with partitions scans far less than fat JSON.</p>
+</div>
+
+<p><strong>Athena</strong> — serverless SQL over S3. Pay per data scanned. Best for ad-hoc and intermittent queries.</p>
+<p><strong>Redshift</strong> — managed columnar warehouse for concurrent BI. Load with COPY from S3. <strong>Spectrum</strong> queries lake data still in S3.</p>
+<p><strong>Glue</strong> — catalog + serverless ETL (Spark). Crawlers discover schemas.</p>
+<p><strong>EMR</strong> — managed Hadoop/Spark/Hive cluster when you need that ecosystem or long-running big-data platforms.</p>
+<p><strong>OpenSearch Service</strong> — full-text search and log analytics UIs — not a SQL warehouse.</p>
+
+<h2>How the lake pattern fits (from AWS docs)</h2>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  ingest[Ingest_batch_or_stream] --> s3[S3_data_lake]
+  s3 --> glue[Glue_Data_Catalog]
+  glue --> athena[Athena]
+  glue --> emr[EMR_or_Glue_ETL]
+  glue --> spectrum[Redshift_Spectrum]
+  s3 --> redshift[Redshift_COPY]
+  athena --> qs[QuickSight]
+  redshift --> qs
+  </div>
+  <p class="caption">Follows the common lake architecture described across <a href="https://docs.aws.amazon.com/athena/latest/ug/what-is.html" target="_blank" rel="noopener">What is Amazon Athena?</a> and <a href="https://docs.aws.amazon.com/glue/latest/dg/what-is-glue.html" target="_blank" rel="noopener">What is AWS Glue?</a>.</p>
+</div>
+
+<div class="exam-tip"><strong class="label">Remember</strong> “SQL on S3, least ops, pay per scan” → Athena + Parquet. “Many analysts, complex warehouse” → Redshift. “Existing Spark jobs / Hadoop” → EMR. “Full-text search” → OpenSearch.</div>
+
+<h2>Use case 1 — ad-hoc SQL on logs</h2>
+<p><strong>Need:</strong> Query JSON logs in S3 a few times a week; no cluster babysitting.</p>
+<p><strong>Design:</strong> Convert to partitioned Parquet (Glue job), crawl into Glue catalog, query with Athena. Optional QuickSight.</p>
+
+<h2>Use case 2 — enterprise BI warehouse</h2>
+<p><strong>Need:</strong> Hundreds of analysts, predictable SQL latency, nightly facts.</p>
+<p><strong>Design:</strong> Redshift (or Serverless), COPY from S3, Spectrum for cold history in the lake.</p>
+
+<h2>Use case 3 — column-level lake security</h2>
+<p><strong>Need:</strong> Analysts query sales in Athena but must not see SSN columns.</p>
+<p><strong>Design:</strong> Lake Formation permissions on Glue tables/columns; lock S3; Athena honors the grants.</p>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem language</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Serverless SQL on S3, cost by bytes scanned</td><td>Athena</td><td>Always-on Redshift for rare queries</td></tr>
+    <tr><td>Petabyte warehouse, concurrency, BI</td><td>Redshift</td><td>Athena as the only engine for heavy concurrent BI</td></tr>
+    <tr><td>Discover schema / serverless Spark ETL</td><td>Glue crawler + Glue ETL</td><td>Hand-edit every partition forever</td></tr>
+    <tr><td>Named Spark/Hadoop/Hive platform needs</td><td>EMR</td><td>Athena alone</td></tr>
+    <tr><td>Full-text / log search dashboards</td><td>OpenSearch</td><td>Redshift</td></tr>
+    <tr><td>Column/row permissions on the lake</td><td>Lake Formation</td><td>Bucket policy alone for column security</td></tr>
+    <tr><td>Business dashboards for humans</td><td>QuickSight (+ Athena/Redshift under it)</td><td>QuickSight as the scan engine</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — Athena cost</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Ad-hoc SQL over 20 TB of JSON in S3 once a month. Least operations and lower scan cost.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Large Redshift cluster left running all month.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Convert to Parquet + partitions, Glue catalog, Athena.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> OpenSearch for SQL warehouse-style joins.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> RDS and load all 20 TB into InnoDB.</div>
+</div>
+
+<h2>Case study 2 — Spark platform</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Data science team has existing Spark jobs, bootstrap needs, and Spot task nodes. They refuse to rewrite for Glue yet.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Athena only.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Amazon EMR with Spark and Spot for task capacity.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> QuickSight SPICE import of raw TB-scale JSON.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> DynamoDB.</div>
+</div>
+
+<h2>Case study 3 — search vs warehouse</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Product catalog needs fuzzy full-text search for the storefront. Separately, finance needs a SQL warehouse.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> One Redshift cluster for fuzzy search UX.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> OpenSearch for product search; Redshift (or Athena) for finance SQL.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Only CloudWatch Logs Insights for the catalog.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Lake Formation alone without a query engine.</div>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>Athena cost = bytes scanned.</strong> <code>SELECT *</code> on JSON is an expensive habit. Project columns; use Parquet.</p>
+<p><strong>Redshift is OLAP, not OLTP.</strong> Do not put the shopping-cart database there.</p>
+<p><strong>Glue has two jobs:</strong> catalog and ETL. Do not forget the catalog when the stem says “discover schema.”</p>
+<p><strong>Kinesis/Firehose</strong> feed the lake or OpenSearch; they are not warehouses.</p>
+
+<div class="exam-skip"><strong class="label">Light touch on the exam</strong> Redshift sort-key homework, Glue DataBrew UI clicks, OpenSearch shard math.</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/athena/latest/ug/what-is.html" target="_blank" rel="noopener">What is Amazon Athena?</a></li>
+  <li><a href="https://docs.aws.amazon.com/redshift/latest/mgmt/welcome.html" target="_blank" rel="noopener">What is Amazon Redshift?</a></li>
+  <li><a href="https://docs.aws.amazon.com/glue/latest/dg/what-is-glue.html" target="_blank" rel="noopener">What is AWS Glue?</a></li>
+  <li><a href="https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-what-is-emr.html" target="_blank" rel="noopener">What is Amazon EMR?</a></li>
+  <li><a href="https://docs.aws.amazon.com/opensearch-service/latest/developerguide/what-is.html" target="_blank" rel="noopener">What is Amazon OpenSearch Service?</a></li>
+  <li><a href="https://docs.aws.amazon.com/lake-formation/latest/dg/what-is-lake-formation.html" target="_blank" rel="noopener">What is AWS Lake Formation?</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/s3.html">S3 data lake storage</a>
+  <a href="../learn/messaging.html">Kinesis and Firehose</a>
+  <a href="../learn/specialty-databases.html">Purpose-built databases</a>
+  <a href="../compare/databases.html">Database picker</a>
+</div>

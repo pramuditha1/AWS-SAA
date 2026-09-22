@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Database picker · SAA-C03 Study</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Sinhala:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/docs.css">
+</head>
+<body data-root="../">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="topbar">
+    <button class="menu-btn" aria-label="Open menu">☰</button>
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">S</span>
+      SAA-C03 <span class="sub">study site</span>
+    </a>
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input id="site-search" type="search" placeholder="Search services…" autocomplete="off">
+      <div id="search-results" hidden></div>
+    </div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar"><div class="nav-group"><h2>Exam</h2><a href="../index.html">Service catalog</a><a href="../exam/overview.html">Exam overview</a><a href="../exam/domain-1-secure.html">Domain 1 · Secure 30%</a><a href="../exam/domain-2-resilient.html">Domain 2 · Resilient 26%</a><a href="../exam/domain-3-performance.html">Domain 3 · Performance 24%</a><a href="../exam/domain-4-cost.html">Domain 4 · Cost 20%</a><a href="../exam/out-of-scope.html">Out of scope</a></div>
+<div class="nav-group"><h2>Learn</h2><a href="../learn/foundations.html">Foundations</a><a href="../learn/well-architected.html">Well-Architected</a><a href="../learn/iam.html">IAM</a><a href="../learn/identity-federation.html">Cognito &amp; federation</a><a href="../learn/security.html">KMS, WAF, Shield</a><a href="../learn/specialty-security.html">Security extras</a><a href="../learn/s3.html">S3</a><a href="../learn/storage.html">EBS, EFS, FSx</a><a href="../learn/ec2.html">EC2</a><a href="../learn/elb-asg.html">Auto Scaling &amp; ELB</a><a href="../learn/vpc.html">VPC</a><a href="../learn/networking-advanced.html">Hybrid networking</a><a href="../learn/route53.html">Route 53</a><a href="../learn/cloudfront.html">CloudFront &amp; GA</a><a href="../learn/databases.html">RDS, Aurora, ElastiCache</a><a href="../learn/dynamodb.html">DynamoDB &amp; API Gateway</a><a href="../learn/specialty-databases.html">DocumentDB, Neptune</a><a href="../learn/messaging.html">SQS, SNS, Kinesis</a><a href="../learn/lambda.html">Lambda &amp; Step Functions</a><a href="../learn/integration-extras.html">AppSync, MSK, AppFlow</a><a href="../learn/monitoring.html">CloudWatch &amp; CloudTrail</a><a href="../learn/containers.html">ECS, EKS, Fargate</a><a href="../learn/migration.html">Migration &amp; DR</a><a href="../learn/analytics.html">Analytics</a><a href="../learn/governance.html">Organizations &amp; Config</a><a href="../learn/cost.html">Cost optimization</a><a href="../learn/hybrid-edge.html">Outposts &amp; Wavelength</a><a href="../learn/ml.html">Machine learning</a></div>
+<div class="nav-group"><h2>Compare</h2><a href="../compare/storage.html">Storage picker</a><a class="active" href="../compare/databases.html">Database picker</a><a href="../compare/messaging.html">Messaging picker</a><a href="../compare/compute.html">Compute picker</a><a href="../compare/networking.html">Networking picker</a><a href="../compare/dr.html">DR picker</a></div>
+<div class="nav-group"><h2>Sinhala</h2><a href="../sinhala/index.html">Sinhala notes</a></div></aside>
+    <main id="main">
+      <div class="crumb">Compare / Databases</div>
+      <h1>Database picker — match the API, then match HA</h1>
+<div class="meta-row"><span class="pill must">High-score page</span><span class="pill domain">Domain 3.3 · purpose-built · Domain 2 HA</span></div>
+<p class="lede">AWS wants a purpose-built database for the access pattern, not one giant relational box for everything. First match the API the app already uses. Then decide if the pain is AZ failover, extra reads, or a whole Region. Those three knobs are different. Mixing them up is how the exam catches you.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>SQL joins, key-value at millions of QPS, a Mongo driver, a graph of fraud rings, and a BI warehouse are different jobs. Forcing them all into one engine makes you rewrite apps or fail under load.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p>This picker chooses among <strong>RDS</strong> / <strong>Aurora</strong> (SQL), <strong>DynamoDB</strong> (key-value / document), <strong>ElastiCache</strong> / <strong>DAX</strong> / <strong>MemoryDB</strong> (cache), <strong>DocumentDB</strong>, <strong>Neptune</strong>, <strong>Keyspaces</strong>, and <strong>Redshift</strong> (warehouse) — then the HA and scale add-ons.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>Engines are <strong>Regional</strong>. <strong>Multi-AZ</strong> keeps a standby in another AZ in the same Region. <strong>Read replicas</strong> can be same-Region or cross-Region. <strong>Aurora Global</strong> and <strong>DynamoDB Global Tables</strong> are Multi-Region. Multi-AZ is not disaster recovery for Region loss.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>API / access pattern · Multi-AZ vs read replica vs Multi-Region · Aurora vs RDS · DynamoDB + DAX · RDS Proxy · ElastiCache vs MemoryDB. Those six ideas cover almost every database stem.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge — how to walk a stem</h2>
+
+<div class="core-box">
+  <h3>Three questions in order</h3>
+  <p><strong>1.</strong> Must the app keep its current SQL / Mongo / Cassandra / Gremlin API? If yes, you may not pick DynamoDB. <strong>2.</strong> Is the pain HA for writes in one Region, more read capacity, or Region failure? <strong>3.</strong> Is the data only a cache (OK to lose) or the system of record?</p>
+</div>
+
+<p><strong>API first.</strong> “Minimal change” + MySQL/Postgres → RDS or Aurora. + MongoDB drivers → DocumentDB. + Cassandra/CQL → Keyspaces. + Gremlin/SPARQL graph → Neptune. Key-value, single-digit ms, huge scale, no joins → DynamoDB. Joins across petabytes for BI → Redshift.</p>
+
+<p><strong>HA vs reads vs DR.</strong> RDS <strong>Multi-AZ</strong> (or Aurora storage + failover) = automatic failover for writes inside one Region, same endpoint. A <strong>read replica</strong> is asynchronous — good for reads or as a DR seed; promotion is a DR action, not automatic HA for the writer. <strong>Aurora Global Database</strong> and <strong>DynamoDB Global Tables</strong> are the Multi-Region answers. Multi-AZ does not save you when the Region goes dark.</p>
+
+<p><strong>Cache or not.</strong> Sessions, leaderboards, sub-millisecond, OK to rebuild → ElastiCache Redis/Valkey (Memcached for simple multi-engine, no persistence). Redis <em>and</em> durable in-memory → MemoryDB. Microsecond DynamoDB reads → DAX (DynamoDB API only — not a Redis in front of RDS).</p>
+
+<h2>Decision diagram</h2>
+<p>AWS’s purpose-built story starts from the access pattern. The diagram below is the exam decision view.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  q{{Access pattern}}
+  q -->|SQL_joins_transactions| sql[RDS_or_Aurora]
+  q -->|key_value_huge_scale| ddb[DynamoDB]
+  q -->|microsecond_Dynamo_reads| dax[DAX]
+  q -->|repeated_RDS_reads| replica[Read_replica_or_ElastiCache]
+  q -->|sessions_leaderboards| redis[ElastiCache_Redis]
+  q -->|MongoDB_drivers| doc[DocumentDB]
+  q -->|graph_Gremlin_SPARQL| nep[Neptune]
+  q -->|CQL_Cassandra| ks[Keyspaces]
+  q -->|warehouse_BI| rs[Redshift]
+  </div>
+  <p class="caption">Decision view for SAA. Start from <a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Welcome.html" target="_blank" rel="noopener">What is Amazon RDS?</a> and <a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Introduction.html" target="_blank" rel="noopener">What is Amazon DynamoDB?</a></p>
+</div>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>If the stem says</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Existing MySQL/Postgres, least change, automatic failover in one Region</td><td>RDS Multi-AZ. Aurora if they also want 3-AZ storage and faster failover</td><td>A lone read replica (async — not HA for writes)</td></tr>
+    <tr><td>MySQL/PG compatible, six copies / three AZs, auto-growing storage, fast failover</td><td>Amazon Aurora</td><td>Plain RDS when the stem listed Aurora-only traits</td></tr>
+    <tr><td>Unpredictable relational load, fine-grained scale / scale toward zero</td><td>Aurora Serverless v2</td><td>Rewrite SQL into DynamoDB without being asked</td></tr>
+    <tr><td>Key-value, single-digit ms, any scale, serverless, no joins</td><td>DynamoDB (on-demand or provisioned + auto scaling)</td><td>Bigger RDS instance</td></tr>
+    <tr><td>DynamoDB with microsecond reads for hot keys</td><td>DAX</td><td>ElastiCache as a drop-in (different API)</td></tr>
+    <tr><td>Offload reads from RDS without a new API</td><td>Read replicas, optionally ElastiCache in front</td><td>DynamoDB</td></tr>
+    <tr><td>Lambda opens thousands of connections to RDS</td><td>Amazon RDS Proxy</td><td>Only raising max_connections</td></tr>
+    <tr><td>Joins across petabytes, BI, columnar</td><td>Amazon Redshift</td><td>RDS as a warehouse</td></tr>
+  </tbody>
+</table></div>
+
+<p><strong>Keep these separate.</strong> Classic RDS Multi-AZ instance: synchronous standby, automatic failover, <em>you cannot read the standby</em>. Multi-AZ DB cluster (MySQL/PostgreSQL): writer + readable standbys. Read replica: async, lag possible. Aurora: storage already Multi-AZ; Global Database is the Multi-Region relational pattern (typical published RPO &lt; 1 s, RTO &lt; 1 min). DynamoDB Global Tables: Multi-Region active-active; strongly consistent reads are same-Region only.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  app[App_or_Lambda] --> proxy[RDS_Proxy]
+  proxy --> writer[RDS_or_Aurora_writer]
+  writer -->|sync_HA| maz[Multi_AZ_standby]
+  writer -->|async_reads| rr[Read_replica]
+  app --> cache[ElastiCache]
+  cache -.-> writer
+  </div>
+  <p class="caption">HA vs reads vs pooling. See <a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.html" target="_blank" rel="noopener">RDS Multi-AZ</a> and <a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.html" target="_blank" rel="noopener">RDS Proxy</a>.</p>
+</div>
+
+<h2>Case study 1 — failover without a rewrite</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">An existing PostgreSQL application needs automatic failover inside one Region. The team will not rewrite SQL. Reporting can stay on the primary for now. RPO for AZ failure should be essentially zero.</p>
+  <div class="opt win"><strong class="tag">A — correct</strong> RDS Multi-AZ instance deployment. Synchronous standby, same endpoint after failover, no SQL rewrite.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> A single read replica in a second AZ. Replication is async. Failover is a promotion. Writes can be lost. That is not automatic HA for writes.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> DynamoDB. Different API. The app is PostgreSQL.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> ElastiCache Redis. A cache is not the system of record.</div>
+  <p>Aurora PostgreSQL also works and wins if they add “storage across three AZs, faster failover, auto-growing storage.” With these constraints, RDS Multi-AZ is enough — do not over-upgrade.</p>
+</div>
+
+<h2>Case study 2 — key-value at any scale</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A mobile game stores player session state as a key-value document. Peak is millions of QPS, load is spiky and unknown, and they want to pay little when idle. Reads and writes must stay in single-digit milliseconds. No joins.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> RDS MySQL with a huge instance and replicas. Expensive at idle and a poor fit for millions of QPS key-value.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> DynamoDB on-demand (or provisioned with auto scaling). Documented serverless key-value at single-digit millisecond scale.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Amazon Redshift. Warehouse, seconds-scale queries — not a session store.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> ElastiCache only, with no durable store. Session loss on node failure is not said to be OK.</div>
+  <p>Later: microsecond DynamoDB reads → add DAX. Active-active two Regions → Global Tables. Do not add extras the stem did not ask for.</p>
+</div>
+
+<h2>Case study 3 — Lambda hammering RDS</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A serverless API uses Lambda against an existing RDS MySQL database. During spikes, Lambda concurrency exhausts <code>max_connections</code>. The schema cannot move this quarter. Failover should not break every connection.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Only a bigger instance. Raises the ceiling and the bill; does not pool thousands of short Lambda connections.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Amazon RDS Proxy between Lambda and RDS. Connection pooling and multiplexing, with better behavior across failover.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> SQS in front of RDS so Lambda never talks to the DB. That forces an async redesign the stem did not ask for.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Migrate immediately to DynamoDB. Schema cannot move this quarter.</div>
+  <p>When connections are the failure mode, the named answer is RDS Proxy. Aurora Serverless v2 can absorb load but does not replace pooling.</p>
+</div>
+
+<h2>Tricky points</h2>
+<p><strong>Multi-AZ ≠ read replica ≠ Multi-Region.</strong> HA for writes in one Region: Multi-AZ or Aurora. Extra reads: replica or cache. Survive Region loss: cross-Region replica, Aurora Global, DynamoDB Global Tables — plus backups, because replication copies corruption.</p>
+<p><strong>You cannot read the classic Multi-AZ standby.</strong> Need reads from another AZ → replica, Multi-AZ DB cluster, or Aurora reader.</p>
+<p><strong>Strongly consistent DynamoDB reads are same-Region.</strong> Global Tables across Regions are eventually consistent.</p>
+<p><strong>DAX vs ElastiCache.</strong> DAX speaks DynamoDB. ElastiCache is Redis/Memcached. Do not put DAX in front of RDS.</p>
+<p><strong>MemoryDB vs ElastiCache Redis.</strong> MemoryDB = Redis-compatible with Multi-AZ durability of the in-memory data. ElastiCache remains the default cache.</p>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.html" target="_blank" rel="noopener">RDS Multi-AZ deployments</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html" target="_blank" rel="noopener">Amazon Aurora overview</a></li>
+  <li><a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Introduction.html" target="_blank" rel="noopener">What is Amazon DynamoDB?</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.html" target="_blank" rel="noopener">Amazon RDS Proxy</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/WhatIs.html" target="_blank" rel="noopener">What is Amazon ElastiCache?</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/databases.html">RDS / Aurora chapter</a>
+  <a href="../learn/dynamodb.html">DynamoDB chapter</a>
+  <a href="../learn/specialty-databases.html">DocumentDB, Neptune, Keyspaces</a>
+  <a href="../compare/dr.html">DR picker</a>
+</div>
+
+    </main>
+  </div>
+  <script src="../assets/js/catalog-data.js"></script>
+  <script src="../assets/js/nav.js?v=2"></script>
+  <script src="../assets/js/search.js"></script>
+  <script src="../assets/js/catalog.js"></script>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "dark",
+      securityLevel: "loose",
+      themeVariables: {
+        darkMode: true,
+        background: "#0a101c",
+        primaryColor: "#243656",
+        primaryTextColor: "#e8eef8",
+        primaryBorderColor: "#ff9900",
+        lineColor: "#9aabc4",
+        secondaryColor: "#1a2438",
+        tertiaryColor: "#121a2b",
+        nodeTextColor: "#e8eef8"
+      }
+    });
+  </script>
+</body>
+</html>

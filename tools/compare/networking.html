@@ -1,0 +1,145 @@
+<h1>Networking picker — stay private, then stay cheap, then go global</h1>
+<div class="meta-row"><span class="pill must">High-score page</span><span class="pill domain">Domains 1.2, 2.1, 3.2 · VPC, hybrid, edge</span></div>
+<p class="lede">Networking stems are constraint puzzles. Security forbids the internet. Finance forbids NAT. The app needs HTTP path routing — or a static IP and TCP. Two VPCs need to talk — or forty VPCs plus a datacenter. AWS has a named tool for each sentence. Refuse the tool that works but breaks cost, privacy, or the layer the stem implied.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Apps must reach S3 without the public internet, talk across VPCs, reach the office, and serve users worldwide. Each need has a different AWS primitive. Using NAT “because it works” when a free gateway endpoint exists is a classic cost miss.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p>This picker chooses among <strong>gateway vs interface VPC endpoints</strong>, <strong>PrivateLink</strong>, <strong>peering vs Transit Gateway</strong>, <strong>Site-to-Site VPN vs Direct Connect</strong>, <strong>ALB / NLB / GWLB</strong>, <strong>CloudFront</strong>, and <strong>Global Accelerator</strong> — plus security groups vs NACLs.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>A <strong>VPC</strong> is Regional. Subnets sit in one <strong>AZ</strong>. Gateways and endpoints attach to the VPC. CloudFront and Global Accelerator sit at the <strong>edge</strong> (global). Hybrid links (VPN / Direct Connect) join your datacenter to AWS.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>Gateway endpoint vs NAT · interface / PrivateLink · peering non-transitive vs TGW hub · VPN this week vs DX dedicated · ALB vs NLB · CloudFront vs Global Accelerator · SG stateful vs NACL stateless. Those ideas cover almost every networking stem.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge — how to walk a stem</h2>
+
+<div class="core-box">
+  <h3>Private first, then cost, then layer</h3>
+  <p>Private subnet + S3 or DynamoDB + no internet + lowest cost → <strong>gateway VPC endpoint</strong> (prefix-list routes, no hourly charge, same Region). The trap is a <strong>NAT Gateway</strong> — it works and bills you. An <strong>interface endpoint</strong> for S3 also works (private IP, costs more) and is right when on-premises clients need a private IP over VPN/DX.</p>
+</div>
+
+<p><strong>Many networks.</strong> Two VPCs, simple, no overlapping CIDRs, no transitivity needed → <strong>VPC peering</strong>. Peering is <strong>not transitive</strong>: A–B and B–C does not give A–C. Three+ VPCs, messy mesh, or VPCs plus on-premises → <strong>Transit Gateway</strong> (hub that is transitive).</p>
+
+<p><strong>Hybrid timing.</strong> Encrypted hybrid needed this week → <strong>Site-to-Site VPN</strong>. Consistent private bandwidth with lead time OK → <strong>Direct Connect</strong>. DX is a private circuit, not IPsec by default — if the stem says “must be encrypted,” add a VPN overlay (or MACsec where offered). VPN now, DX later, both into TGW, is a standard design.</p>
+
+<p><strong>Load balancer layer.</strong> Layer 7 HTTP, host/path rules, WAF → <strong>ALB</strong> (often CloudFront in front for public HTTP). Static IP, TCP/UDP, TLS passthrough, huge connection counts → <strong>NLB</strong>. Inspect all VPC traffic with third-party firewalls → <strong>Gateway Load Balancer</strong>.</p>
+
+<p><strong>Security groups vs NACLs.</strong> Security groups are <strong>stateful</strong>, on ENIs, allow-only. NACLs are <strong>stateless</strong>, on subnets, need both directions, can explicit deny, numbered rules. Ephemeral return ports bite people on NACLs. Deny a bad IP across a subnet quickly → NACL. “This fleet may talk to this RDS on 3306” → security group referencing another security group.</p>
+
+<h2>Decision diagram</h2>
+<p>AWS’s VPC connectivity and edge docs name a primitive for each “connect X to Y” story. Use this decision view.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  q{{Connect what to what}}
+  q -->|private_EC2_to_S3_DynamoDB| gw[Gateway_VPC_endpoint]
+  q -->|private_to_other_AWS_APIs| ife[Interface_endpoint]
+  q -->|expose_my_service_to_other_VPCs| pl[PrivateLink_NLB]
+  q -->|two_VPCs_simple_non_transitive| peer[VPC_peering]
+  q -->|many_VPCs_plus_on_prem| tgw[Transit_Gateway]
+  q -->|on_prem_this_week| vpn[Site_to_Site_VPN]
+  q -->|on_prem_dedicated_bandwidth| dx[Direct_Connect]
+  q -->|HTTP_cache_WAF_geo| cf[CloudFront]
+  q -->|static_anycast_TCP| ga[Global_Accelerator]
+  </div>
+  <p class="caption">Decision view for SAA. See <a href="https://docs.aws.amazon.com/whitepapers/latest/aws-vpc-connectivity-options/introduction.html" target="_blank" rel="noopener">Amazon VPC Connectivity Options</a> and <a href="https://docs.aws.amazon.com/vpc/latest/privatelink/gateway-endpoints.html" target="_blank" rel="noopener">Gateway VPC endpoints</a>.</p>
+</div>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>If the stem says</th><th>Pick</th><th>Typical distractor</th></tr></thead>
+  <tbody>
+    <tr><td>Private EC2 → S3/DynamoDB, no internet, lowest cost</td><td>Gateway VPC endpoint</td><td>NAT Gateway (works, costs). Interface endpoint (costs more)</td></tr>
+    <tr><td>Private access to Secrets Manager, KMS, other APIs</td><td>Interface endpoint / PrivateLink</td><td>Gateway endpoint (S3 and DynamoDB only)</td></tr>
+    <tr><td>Expose your service to other VPCs/accounts without peering or IGW</td><td>PrivateLink (NLB + endpoint service)</td><td>Peering that opens the whole VPC</td></tr>
+    <tr><td>Peering mesh is messy; many VPCs + on-prem need a hub</td><td>Transit Gateway</td><td>Full peering mesh (not transitive)</td></tr>
+    <tr><td>Encrypted hybrid, need it this week</td><td>Site-to-Site VPN</td><td>Direct Connect as if it were instant</td></tr>
+    <tr><td>Consistent private bandwidth, lead time OK</td><td>Direct Connect</td><td>VPN alone when they asked for dedicated</td></tr>
+    <tr><td>Encrypt DX / add backup path</td><td>VPN overlay on DX; VPN as backup</td><td>Assuming DX is IPsec by default</td></tr>
+    <tr><td>HTTP path routing, WAF, microservices</td><td>ALB (+ CloudFront/WAF if public)</td><td>NLB</td></tr>
+    <tr><td>Static IP, TCP/UDP, TLS passthrough, extreme connections</td><td>NLB (Global Accelerator if users are global)</td><td>ALB</td></tr>
+  </tbody>
+</table></div>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  user[Internet_user] --> cf[CloudFront_OAC]
+  cf --> alb[ALB]
+  alb --> app[App_SG]
+  app --> rds[RDS_SG]
+  app --> s3[S3_via_gateway_endpoint]
+  </div>
+  <p class="caption">Common private-origin pattern. OAC: <a href="https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html" target="_blank" rel="noopener">Restricting access to an S3 origin</a>.</p>
+</div>
+
+<h2>Case study 1 — S3 from private subnets without burning money</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Private EC2 instances must GetObject and PutObject against a bucket in the same Region. The VPC has no internet gateway. Security forbids the public internet. Cost should be as low as possible.</p>
+  <div class="opt win"><strong class="tag">A — correct</strong> Gateway VPC endpoint for S3. Route-table prefix list, traffic stays on the AWS network, no hourly charge.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> NAT Gateway plus IGW. Violates “no public internet,” and you pay hourly and per-GB. Also there is no IGW today.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Interface endpoint for S3. Works and gives a private IP, but costs more. Correct for on-premises over DX/VPN, not for in-VPC EC2 with a cost constraint.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Public IPv4 on each instance. Violates “no internet.”</div>
+  <p>Gateway endpoints are for same-Region S3/DynamoDB from VPC route tables. Cross-Region needs another pattern. The exam usually stays in-Region for this item.</p>
+</div>
+
+<h2>Case study 2 — forty VPCs and a datacenter</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A company has 40 application VPCs in one Region and an on-premises datacenter. Every VPC must talk to every other VPC and to on-premises. Overlapping CIDRs are not an issue. Peering mesh is unmanageable. Encrypted connectivity to on-premises is required this month; dedicated bandwidth can come later.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Full peering mesh. Not transitive; 40×39/2 links. This is the problem Transit Gateway solves.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Transit Gateway attaching every VPC, plus a Site-to-Site VPN attachment for on-premises now. Add Direct Connect to the same TGW later.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> One shared VPC and RAM only. Shared VPC helps with subnets; it is not the routing fabric for 40 isolated app VPCs plus a DC.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Direct Connect this week with no VPN. DX is not instant; the stem said this month and encrypted.</div>
+  <p>VPN now, DX later, both into Transit Gateway. VPN overlay on DX adds IPsec if the stem demands encryption on the dedicated path.</p>
+</div>
+
+<h2>Case study 3 — HTTP at the edge vs TCP anycast</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A global user base opens a mobile API over HTTPS. They need caching of GET responses, AWS WAF, and a private S3 origin for static assets. A second workload is a real-time game protocol over TCP that needs static anycast IPs and regional failover — not HTTP caching.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Global Accelerator for both. GA does not cache HTTP and does not replace WAF + OAC for S3.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> CloudFront + WAF + Origin Access Control for the API/ALB and S3; Global Accelerator in front of regional NLBs for the game protocol.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Route 53 latency routing alone for the HTTP API. Finds a close Region; does not cache or attach WAF at hundreds of edge locations the way CloudFront does.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> API Gateway plus CloudFront for the game TCP protocol. API Gateway is HTTP/WebSocket, not arbitrary TCP.</div>
+  <p>CloudFront = HTTP(S) CDN, WAF, OAC. Global Accelerator = static anycast IPs, TCP/UDP, health-check failover. Route 53 is DNS in the path of both — not the CDN and not the anycast fabric.</p>
+</div>
+
+<h2>Tricky points</h2>
+<p><strong>NAT vs gateway endpoint.</strong> NAT = general internet (patch repos, third-party APIs). Gateway endpoint = S3/DynamoDB. Using NAT for S3 is the cost trap.</p>
+<p><strong>IPv4 vs IPv6 egress.</strong> NAT Gateway is IPv4. IPv6 uses an egress-only internet gateway.</p>
+<p><strong>Public vs private subnet.</strong> A subnet is public when its route table points <code>0.0.0.0/0</code> at an IGW. NAT Gateways live in a public subnet.</p>
+<p><strong>Security groups are stateful.</strong> You do not open ephemeral return ports on the SG. You do on a NACL.</p>
+<p><strong>Direct Connect is not IPsec by default.</strong> Private circuit ≠ encrypted. Add VPN overlay or MACsec when the stem demands encryption.</p>
+<p><strong>Gateway Load Balancer</strong> is bump-in-the-wire for firewall/IPS appliances — not a substitute for ALB.</p>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/vpc/latest/privatelink/gateway-endpoints.html" target="_blank" rel="noopener">Gateway VPC endpoints</a></li>
+  <li><a href="https://docs.aws.amazon.com/vpc/latest/tgw/what-is-transit-gateway.html" target="_blank" rel="noopener">What is AWS Transit Gateway?</a></li>
+  <li><a href="https://docs.aws.amazon.com/whitepapers/latest/aws-vpc-connectivity-options/introduction.html" target="_blank" rel="noopener">Amazon VPC Connectivity Options</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html" target="_blank" rel="noopener">Restricting access to an S3 origin (OAC)</a></li>
+  <li><a href="https://docs.aws.amazon.com/global-accelerator/latest/dg/what-is-global-accelerator.html" target="_blank" rel="noopener">What is AWS Global Accelerator?</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/vpc.html">VPC chapter</a>
+  <a href="../learn/networking-advanced.html">Hybrid networking</a>
+  <a href="../learn/cloudfront.html">CloudFront and Global Accelerator</a>
+  <a href="../learn/route53.html">Route 53</a>
+</div>

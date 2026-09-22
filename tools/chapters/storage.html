@@ -1,0 +1,202 @@
+<h1>Block and file storage — EBS, EFS, FSx, and hybrid tools</h1>
+<div class="meta-row"><span class="pill must">Must-know</span><span class="pill domain">Domains 2–4 · resilient, performance, cost</span></div>
+<p class="lede">S3 is object storage. This chapter is the rest: disks you attach to one EC2 instance, file systems many instances mount together, Windows and HPC specialists, and tools that move or present data between a data center and AWS. On the exam, circle the OS, the protocol, and whether data may vanish — then pick the service.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Apps need different shapes of storage. A database wants a fast exclusive disk. A web fleet wants one shared folder. A Windows shop wants SMB and Active Directory. One product cannot do all of that well.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p><strong>EBS</strong> is a network disk for one EC2 (usually) in one AZ. <strong>EFS</strong> is a shared Linux NFS file system across AZs. <strong>FSx</strong> is managed file systems for Windows (SMB), Lustre (HPC), and a few specialists. <strong>Storage Gateway</strong>, <strong>DataSync</strong>, and <strong>Snow</strong> connect on-premises to AWS.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>EBS volumes live in one AZ. EFS (Regional) is Multi-AZ in a Region. Snapshots of EBS are regional (stored in S3 behind the scenes) and can be copied to another Region. Hybrid tools sit in your data center and talk to AWS over the network — or travel by truck (Snow).</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>EBS vs instance store · gp3 vs io2 · EFS (Linux NFS) · FSx for Windows (SMB + AD) · FSx for Lustre · Gateway vs DataSync vs Snow. Those choices decide almost every storage stem.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>Block vs file in one breath</h3>
+  <p><strong>Block</strong> storage looks like a hard drive (you format it; one instance owns it). <strong>File</strong> storage looks like a shared folder (many computers mount the same path). EBS is block. EFS and FSx are file. S3 is object (not a POSIX disk) — still important because snapshots and many hybrid paths land in S3.</p>
+</div>
+
+<p><strong>EBS volume</strong> — a durable disk in one AZ. Attach it to an EC2 in that same AZ. Survives stop/terminate if you keep the volume.</p>
+<p><strong>Instance store</strong> — disks on the physical host. Very fast. <strong>Ephemeral</strong>: stop, terminate, or lose the host and the data is gone.</p>
+<p><strong>Snapshot</strong> — a point-in-time backup of an EBS volume, kept in the Region (S3-backed). Create a new volume from it in another AZ or copy the snapshot to another Region for DR.</p>
+<p><strong>EFS</strong> — managed NFSv4 for Linux. Regional deployment = mount targets in multiple AZs; shared POSIX namespace.</p>
+<p><strong>FSx for Windows File Server</strong> — managed SMB/NTFS with Active Directory. <strong>FSx for Lustre</strong> — high-performance parallel file system for Linux HPC/ML, often linked to S3.</p>
+
+<h2>How to pick the storage family (decision from AWS docs)</h2>
+<p>Start from what the data must do: exclusive block disk, shared file system, or hybrid move/present. AWS documents each service around that job.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  need[What_must_the_data_do] --> block[Single_instance_block]
+  need --> file[Shared_file_system]
+  need --> hybrid[On_prem_to_AWS]
+  block --> ebs[EBS_AZ_locked]
+  block --> inst[Instance_store_ephemeral]
+  file --> linux[Linux_NFS]
+  file --> win[Windows_SMB_AD]
+  file --> hpc[HPC_parallel]
+  linux --> efs[EFS_MultiAZ]
+  win --> fsxw[FSx_Windows]
+  hpc --> lustre[FSx_Lustre]
+  hybrid --> live[Network_usable]
+  hybrid --> dark[Network_not_usable]
+  live --> dsync[DataSync_or_Gateway]
+  dark --> snow[Snow_family]
+  </div>
+  <p class="caption">Service roles from <a href="https://docs.aws.amazon.com/ebs/latest/userguide/what-is-ebs.html" target="_blank" rel="noopener">What is Amazon EBS?</a>, <a href="https://docs.aws.amazon.com/efs/latest/ug/whatisefs.html" target="_blank" rel="noopener">What is Amazon EFS?</a>, and <a href="https://docs.aws.amazon.com/fsx/latest/WindowsGuide/what-is.html" target="_blank" rel="noopener">What is FSx for Windows?</a>.</p>
+</div>
+
+<h2>EBS and instance store</h2>
+<p>You create an EBS volume in one AZ and attach it only in that AZ. There is no “Multi-AZ EBS volume.” To move data to another AZ: snapshot → create volume in the target AZ. To another Region: copy the snapshot, then create a volume.</p>
+<p><strong>gp3</strong> is the usual general-purpose SSD (boot disks and most apps). You can raise IOPS and throughput without making the disk huge. <strong>io2</strong> is for sustained high provisioned IOPS (busy databases). <strong>st1</strong> / <strong>sc1</strong> are HDD for sequential or cold data — not boot volumes.</p>
+<p><strong>Multi-Attach</strong> (io1/io2 only) lets more than one Nitro instance in the <em>same</em> AZ attach the volume. The software on top must be cluster-aware. It is not a shared file system across AZs and not a substitute for EFS.</p>
+<p>Encryption uses KMS. You cannot flip an existing unencrypted volume to encrypted in place. Documented path: snapshot → <strong>copy snapshot with encryption</strong> → new volume → swap.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  unenc[Unencrypted_EBS] --> snap[Snapshot_still_unencrypted]
+  snap --> copy[Copy_snapshot_with_KMS]
+  copy --> encsnap[Encrypted_snapshot]
+  encsnap --> newvol[New_encrypted_volume]
+  </div>
+  <p class="caption">Follows <a href="https://docs.aws.amazon.com/ebs/latest/userguide/ebs-encryption.html" target="_blank" rel="noopener">Amazon EBS encryption</a>. Default account encryption does not rewrite old volumes.</p>
+</div>
+
+<p><strong>Instance store</strong> is the “highest IOPS, data can be rebuilt” answer. Anything that must survive a stop belongs on EBS, EFS, FSx, or S3.</p>
+
+<h2>EFS and FSx</h2>
+<p><strong>EFS (Regional)</strong> is the Linux Multi-AZ shared folder. Mount from EC2, containers, or Lambda in the VPC. It is not a Windows file server and does not speak native SMB/AD the way FSx for Windows does. One Zone EFS is cheaper and dies with that AZ. Encryption at rest is KMS; TLS on the mount for in transit. EFS Replication to another Region is DR — Regional EFS itself is already HA inside the Region.</p>
+<p><strong>FSx for Windows File Server</strong> joins Active Directory, understands Windows ACLs, and serves SMB. Use it for Windows home directories and lift-and-shift Windows shares. Single-AZ or Multi-AZ.</p>
+<p><strong>FSx for Lustre</strong> is for HPC/ML scratch or persistent high throughput, often linked to an S3 data lake. Wrong for ordinary CMS home directories.</p>
+
+<h2>Hybrid: present, copy, or ship</h2>
+<p><strong>Storage Gateway</strong> presents NFS/SMB (File), iSCSI (Volume), or a virtual tape library (Tape) while data lives in AWS (or snapshots to AWS). Ongoing hybrid access — not a one-shot migration tool.</p>
+<p><strong>DataSync</strong> copies over the network with checksums and schedules. Online migration or sync to S3, EFS, or FSx. Not a user-facing file share.</p>
+<p><strong>Snow</strong> ships a device when the network cannot finish in time. Data lands in S3; use lifecycle if you wanted Glacier classes. There is no “Snow directly into Glacier” path on the exam story.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  onprem[On_premises] -->|live_mount| gw[Storage_Gateway]
+  onprem -->|online_copy| ds[DataSync]
+  onprem -->|offline_truck| snow[Snow_to_S3]
+  gw --> s3a[S3_or_FSx]
+  ds --> s3b[S3_EFS_FSx]
+  snow --> s3c[S3]
+  </div>
+  <p class="caption">Roles from <a href="https://docs.aws.amazon.com/storagegateway/latest/userguide/WhatIsStorageGateway.html" target="_blank" rel="noopener">Storage Gateway</a>, <a href="https://docs.aws.amazon.com/datasync/latest/userguide/what-is-datasync.html" target="_blank" rel="noopener">DataSync</a>, and <a href="https://docs.aws.amazon.com/snowball/latest/developer-guide/whatissnow.html" target="_blank" rel="noopener">Snowball Edge</a>.</p>
+</div>
+
+<h2>Use case 1 — Linux web fleet, same files, two AZs</h2>
+<p><strong>Need:</strong> Auto Scaling Amazon Linux in two AZs; every instance reads/writes the same upload tree; survive one AZ loss.</p>
+<p><strong>Design:</strong> Regional EFS, mount over NFS (TLS if required). Lifecycle cold files to IA. Not Multi-Attach EBS.</p>
+<div class="mermaid">
+flowchart LR
+  asg[ASG_two_AZs] --> efs[Regional_EFS]
+</div>
+
+<h2>Use case 2 — Windows share with AD</h2>
+<p><strong>Need:</strong> Windows EC2 and desktops need SMB, NTFS ACLs, and existing Active Directory.</p>
+<p><strong>Design:</strong> FSx for Windows File Server joined to AD; Multi-AZ if HA was required. EFS is the wrong native answer.</p>
+
+<h2>Use case 3 — migrate vs present on-premises NFS</h2>
+<p><strong>Need:</strong> Keep a live NFS mount for months while durable copies land in S3 for ML; network is usable.</p>
+<p><strong>Design:</strong> File Gateway (present) and/or DataSync (copy). Snow only if the pipe cannot finish before the deadline.</p>
+
+<h2>How to choose — stem language → pick</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem says…</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Boot / general EC2 disk, cost-aware</td><td>gp3 (encrypted)</td><td>io2 for every boot disk; instance store if data must survive stop</td></tr>
+    <tr><td>Sustained high IOPS database on EC2</td><td>io2</td><td>EFS for a write-ahead log</td></tr>
+    <tr><td>Linux fleet, same files, two AZs</td><td>Regional EFS</td><td>EBS Multi-Attach</td></tr>
+    <tr><td>Windows SMB + AD ACLs</td><td>FSx for Windows</td><td>EFS</td></tr>
+    <tr><td>HPC/ML next to S3 lake</td><td>FSx for Lustre</td><td>Windows home-drive design</td></tr>
+    <tr><td>Encrypt existing unencrypted EBS</td><td>Snapshot → copy with KMS → new volume</td><td>In-place “tick encrypt”</td></tr>
+    <tr><td>Highest IOPS, rebuildable data</td><td>Instance store (or Lustre scratch)</td><td>Paying io2 for throwaway shuffle</td></tr>
+    <tr><td>Live hybrid NFS/SMB to S3</td><td>Storage Gateway File</td><td>DataSync alone as the mount</td></tr>
+    <tr><td>Network can finish the copy</td><td>DataSync</td><td>Snow by default</td></tr>
+    <tr><td>Network cannot finish in time</td><td>Snow → S3</td><td>“Snow into Glacier” as the landing zone</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — shared files, two AZs, Linux</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A CMS runs on Amazon Linux Auto Scaling in two AZs. Every instance must read and write the same upload directory. Files must survive instance replace and one AZ loss. Windows is not in use. Reasonable cost.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> io2 Multi-Attach to all instances.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Instance store on each node plus cron rsync.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> Regional EFS mounted over NFS; lifecycle toward IA for cold files.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> FSx for Windows Multi-AZ mounted with SMB on Linux.</div>
+  <p>Multi-Attach is same-AZ only and needs a cluster file system. Regional EFS is the documented Linux Multi-AZ share. See <a href="https://docs.aws.amazon.com/efs/latest/ug/whatisefs.html" target="_blank" rel="noopener">What is Amazon EFS?</a>.</p>
+</div>
+
+<h2>Case study 2 — encrypt EBS after the fact</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Postgres on one EC2 has an unencrypted 2 TB gp3 volume in <code>eu-west-1a</code>. Compliance needs a customer-managed KMS key. Peak is 12,000 IOPS (gp3 is fine). Short planned cut-over is OK. Keep incremental backups.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Enable default EBS encryption and reboot.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Detach the volume, tick encrypt, reattach.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> Snapshot → copy with CMK encryption → new volume in the same AZ → swap; continue snapshot backups of the new volume.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Move the data directory to EFS for “free Multi-AZ.”</div>
+</div>
+
+<h2>Case study 3 — present versus copy versus ship</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A factory has 120 TB on NFS. Engineers must keep the NFS mount for six months. AWS needs a durable copy for SageMaker. 1 Gbps Direct Connect exists (partly used). Filer lease ends in eight months.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Snowball this week, shut the filer, read from the S3 console.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> One DataSync run tonight, then mount S3 with a FUSE client.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> File Gateway (and/or scheduled DataSync) so NFS stays available while objects land in S3; Snow only if the network cannot finish.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Volume Gateway cached mode with iSCSI on the Linux workstations.</div>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>EBS is AZ-locked; snapshots are regional.</strong> Mobility always goes through a snapshot (and copy for another Region).</p>
+<p><strong>Shared ≠ bigger EBS.</strong> Two AZs + same files = EFS (Linux) or FSx (Windows), not Multi-Attach.</p>
+<p><strong>Instance store is speed + a trap.</strong> Fastest local IOPS; zero durability across stop/terminate.</p>
+<p><strong>Gateway presents · DataSync copies · Snow ships.</strong> Do not mix those verbs.</p>
+<p><strong>Meet every constraint, then take the cheaper disk.</strong> gp3 before io2 when IOPS fit. One Zone EFS is cheaper and wrong if AZ loss was named.</p>
+
+<div class="exam-tip"><strong class="label">Exam habit</strong> Circle OS, protocol, AZ/Region wording, and whether data may vanish. Those four circles usually leave one service.</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/ebs/latest/userguide/what-is-ebs.html" target="_blank" rel="noopener">What is Amazon EBS?</a></li>
+  <li><a href="https://docs.aws.amazon.com/ebs/latest/userguide/ebs-volume-types.html" target="_blank" rel="noopener">EBS volume types</a></li>
+  <li><a href="https://docs.aws.amazon.com/ebs/latest/userguide/ebs-encryption.html" target="_blank" rel="noopener">Amazon EBS encryption</a></li>
+  <li><a href="https://docs.aws.amazon.com/ebs/latest/userguide/ebs-volumes-multi.html" target="_blank" rel="noopener">EBS Multi-Attach</a></li>
+  <li><a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/InstanceStorage.html" target="_blank" rel="noopener">EC2 instance store</a></li>
+  <li><a href="https://docs.aws.amazon.com/efs/latest/ug/whatisefs.html" target="_blank" rel="noopener">What is Amazon EFS?</a></li>
+  <li><a href="https://docs.aws.amazon.com/fsx/latest/WindowsGuide/what-is.html" target="_blank" rel="noopener">What is FSx for Windows File Server?</a></li>
+  <li><a href="https://docs.aws.amazon.com/fsx/latest/LustreGuide/what-is.html" target="_blank" rel="noopener">What is FSx for Lustre?</a></li>
+  <li><a href="https://docs.aws.amazon.com/storagegateway/latest/userguide/WhatIsStorageGateway.html" target="_blank" rel="noopener">What is AWS Storage Gateway?</a></li>
+  <li><a href="https://docs.aws.amazon.com/datasync/latest/userguide/what-is-datasync.html" target="_blank" rel="noopener">What is AWS DataSync?</a></li>
+  <li><a href="https://docs.aws.amazon.com/snowball/latest/developer-guide/whatissnow.html" target="_blank" rel="noopener">What is AWS Snowball Edge?</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../compare/storage.html">Storage picker</a>
+  <a href="../learn/s3.html">Amazon S3</a>
+  <a href="../learn/ec2.html">EC2</a>
+  <a href="../learn/vpc.html">VPC and endpoints</a>
+  <a href="../learn/security.html">KMS</a>
+  <a href="../learn/migration.html">Migration and DR</a>
+</div>

@@ -1,0 +1,144 @@
+<h1>Migration and disaster recovery — move workloads, survive Regions</h1>
+<div class="meta-row"><span class="pill must">Must-know</span><span class="pill domain">Domain 2 · RPO/RTO, DMS, MGN, 7 Rs</span></div>
+<p class="lede">Migration is how you get onto AWS. Disaster recovery is how you stay alive when a Region or AZ fails. The exam loves two numbers — <strong>RPO</strong> (how much data you may lose) and <strong>RTO</strong> (how long you may be down) — and the matching pattern.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Datacenters age out. Databases must move with little downtime. Backups sitting in one Region are not a DR plan if that Region is dark.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p><strong>DR strategies</strong> (backup/restore → pilot light → warm standby → multi-site). <strong>DMS</strong> moves databases. <strong>MGN</strong> rehosts servers. <strong>DataSync / Snow / Transfer Family</strong> move files. <strong>AWS Backup</strong> centralizes backups. The <strong>7 Rs</strong> name how you modernize.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>DR usually spans <strong>Regions</strong>. Multi-AZ is inside one Region (high availability, not full Regional DR). Migration tools run in a Region and reach on-premises over VPN/DX or via shipped appliances.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>RPO/RTO ladder · DMS + SCT · MGN · DataSync vs Snow · AWS Backup · Route 53 failover. Those cover almost every migration/DR stem.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>RPO and RTO in one breath</h3>
+  <p><strong>RPO (recovery point objective)</strong> — how stale can the recovered data be? (minutes of lost writes vs hours). <strong>RTO (recovery time objective)</strong> — how long until users work again? Cheaper DR means larger RPO/RTO. Near-zero needs active-active and cost.</p>
+</div>
+
+<div class="table-wrap"><table>
+  <thead><tr><th>Strategy</th><th>In plain English</th><th>Typical RPO/RTO</th></tr></thead>
+  <tbody>
+    <tr><td>Backup and restore</td><td>Store backups; build when disaster hits</td><td>Hours / hours</td></tr>
+    <tr><td>Pilot light</td><td>Core data tier ready; scale apps on event</td><td>Minutes / tens of minutes</td></tr>
+    <tr><td>Warm standby</td><td>Small full stack always on; scale out</td><td>Seconds–minutes / minutes</td></tr>
+    <tr><td>Multi-site active/active</td><td>Full prod in two+ Regions</td><td>Near zero / near zero</td></tr>
+  </tbody>
+</table></div>
+
+<p><strong>DMS (Database Migration Service)</strong> — continuous replication with full load + CDC; source stays up. <strong>SCT</strong> converts schemas for heterogeneous moves (Oracle → PostgreSQL).</p>
+<p><strong>MGN (Application Migration Service)</strong> — block-level replication of servers for lift-and-shift (rehost).</p>
+<p><strong>DataSync</strong> — online file sync/migrate to S3/EFS/FSx. <strong>Snow</strong> — ship petabytes offline. <strong>Storage Gateway</strong> — ongoing hybrid access (not one-shot migrate).</p>
+
+<h2>How DR failover is often wired</h2>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  users[Users] --> r53[Route53_failover]
+  r53 -->|healthy| primary[Region_A_stack]
+  r53 -->|unhealthy| dr[Region_B_standby]
+  data[Replicated_data] --> dr
+  </div>
+  <p class="caption">DNS failover pattern pairs with the DR ladder in the <a href="https://docs.aws.amazon.com/whitepapers/latest/disaster-recovery-workloads-on-aws/disaster-recovery-options-in-the-cloud.html" target="_blank" rel="noopener">Disaster recovery options in the cloud</a> whitepaper.</p>
+</div>
+
+<h2>The 7 Rs (migration strategy names)</h2>
+<p>Exam stems often paraphrase: <strong>Rehost</strong> (lift-and-shift, MGN), <strong>Replatform</strong> (managed DB, little code change), <strong>Refactor/re-architect</strong> (serverless/microservices), <strong>Repurchase</strong> (SaaS), <strong>Retire</strong>, <strong>Retain</strong>, <strong>Relocate</strong> (VMware Cloud on AWS). Match the verb to the tool.</p>
+
+<div class="exam-tip"><strong class="label">Remember</strong> Multi-AZ RDS ≠ cross-Region DR. For Regional failure you need cross-Region replicas/snapshots, Aurora Global, DynamoDB Global Tables, or an explicit DR stack.</div>
+
+<h2>Use case 1 — database with minimal downtime</h2>
+<p><strong>Need:</strong> Oracle on-premises → Aurora PostgreSQL; keep source writable during cutover.</p>
+<p><strong>Design:</strong> SCT for schema, DMS full load + CDC, cut over when lag is tiny.</p>
+
+<h2>Use case 2 — cheap Regional DR</h2>
+<p><strong>Need:</strong> RTO of hours is OK; minimize cost.</p>
+<p><strong>Design:</strong> Backup and restore: AWS Backup / snapshots copied cross-Region; rebuild from AMIs and IaC when needed.</p>
+
+<h2>Use case 3 — large filesystem migrate</h2>
+<p><strong>Need:</strong> 80 TB NAS → S3; network is too slow for the deadline.</p>
+<p><strong>Design:</strong> Snowball/Snowball Edge (or Snowmobile at extreme scale). Use DataSync when the pipe is good enough for online transfer.</p>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem language</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Cheapest DR, hours OK</td><td>Backup and restore</td><td>Active-active</td></tr>
+    <tr><td>Core DB warm in DR Region, apps launch on event</td><td>Pilot light</td><td>Full duplicate always on</td></tr>
+    <tr><td>Scaled-down stack always serving</td><td>Warm standby</td><td>Backup only</td></tr>
+    <tr><td>Near-zero RPO/RTO both Regions</td><td>Multi-site active/active</td><td>Pilot light</td></tr>
+    <tr><td>DB migrate, minimal downtime</td><td>DMS (+ SCT if engines differ)</td><td>Manual dump only weekend</td></tr>
+    <tr><td>Lift VMs as-is</td><td>MGN (rehost)</td><td>Rewrite first unless asked</td></tr>
+    <tr><td>Online file sync to AWS</td><td>DataSync</td><td>Snow (unless offline/petabyte)</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — RTO minutes</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">RPO of seconds and RTO of a few minutes. Budget allows a small always-on copy in a second Region.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Backup and restore only — RTO is hours.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Pilot light with cold app tier and long AMI launch if the stem’s RTO is a few minutes and they already fund a running mini-stack.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> Warm standby: functional scaled-down environment, scale out + Route 53 failover on disaster.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Multi-AZ in one Region only — does not cover Regional failure.</div>
+</div>
+
+<h2>Case study 2 — heterogeneous DB</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">SQL Server on-premises must become Aurora MySQL with almost no cutover window.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> DMS alone without schema conversion planning — engines differ.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> SCT to convert schema + DMS full load and CDC, then cut over.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> MGN for the database host only — still SQL Server, not Aurora MySQL.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Snowball with a weekend outage when they forbade downtime.</div>
+</div>
+
+<h2>Case study 3 — rehost servers</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Hundreds of VMs must move with minimal change; continuous block replication until cutover.</p>
+  <div class="opt win"><strong class="tag">A — correct</strong> AWS Application Migration Service (MGN).</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> DMS — databases, not general VMs.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Only AMI import once with weeks of freeze.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> AppFlow.</div>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>HA ≠ DR.</strong> Multi-AZ protects against AZ failure. Regional DR needs another Region.</p>
+<p><strong>Replication lag is RPO.</strong> Async cross-Region replicas can lose the last few seconds/minutes of writes.</p>
+<p><strong>DataSync vs Storage Gateway.</strong> DataSync migrates/syncs. Gateway keeps a hybrid file/volume/tape presence long term.</p>
+<p><strong>AWS Backup</strong> orchestrates backups across services; it is not by itself a running standby.</p>
+
+<div class="exam-skip"><strong class="label">Light touch on the exam</strong> Exact Snow device SKUs, DMS tuning knobs, CloudEndure legacy naming (use MGN).</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/whitepapers/latest/disaster-recovery-workloads-on-aws/disaster-recovery-options-in-the-cloud.html" target="_blank" rel="noopener">Disaster recovery options in the cloud</a></li>
+  <li><a href="https://docs.aws.amazon.com/dms/latest/userguide/Welcome.html" target="_blank" rel="noopener">What is AWS DMS?</a></li>
+  <li><a href="https://docs.aws.amazon.com/mgn/latest/ug/what-is-application-migration-service.html" target="_blank" rel="noopener">What is Application Migration Service?</a></li>
+  <li><a href="https://docs.aws.amazon.com/datasync/latest/userguide/what-is-datasync.html" target="_blank" rel="noopener">What is AWS DataSync?</a></li>
+  <li><a href="https://docs.aws.amazon.com/aws-backup/latest/devguide/whatisbackup.html" target="_blank" rel="noopener">What is AWS Backup?</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../compare/dr.html">DR picker</a>
+  <a href="../learn/route53.html">DNS failover</a>
+  <a href="../learn/databases.html">Aurora Global / Multi-AZ</a>
+  <a href="../learn/storage.html">Snow and Storage Gateway</a>
+</div>

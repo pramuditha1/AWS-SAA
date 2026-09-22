@@ -1,0 +1,204 @@
+<h1>Amazon S3 — object storage for almost every app</h1>
+<div class="meta-row"><span class="pill must">Must-know</span><span class="pill domain">Domains 1–4 · Secure, resilient, performance, and cost</span></div>
+<p class="lede">Amazon S3 is AWS’s object storage service. You put files (objects) in buckets and read them by key. On the exam you choose a storage class, an encryption mode, a private access path, and — when needed — replication or immutability that still meet every constraint in the stem.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Apps need a place for backups, logs, images, data lakes, and static websites. Disks on one server do not scale, and they die with that server. You want durable storage you address by name, not by a block device.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p><strong>Amazon S3</strong> (Simple Storage Service) stores <strong>objects</strong> — a key (the name), the bytes, and metadata — inside a <strong>bucket</strong>. You talk to it over HTTPS with the API, an SDK, the console, or a VPC endpoint. There are no real folders; slashes in a key are just characters that create a useful prefix.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>A bucket lives in one <strong>Region</strong> you choose at create time. The bucket <em>name</em> is globally unique across AWS; the <em>data</em> is Regional. Multi-AZ classes store copies across Availability Zones in that Region. Cross-Region needs replication or a copy you control.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>Bucket + object · storage class · encryption (SSE-S3 / SSE-KMS) · Block Public Access · versioning / Object Lock · CRR/SRR · gateway VPC endpoint. Those cover almost every SAA S3 question.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>Object storage in one breath</h3>
+  <p>You create a bucket in a Region, then PUT objects into it. Each object has a key like <code>incoming/2026/photo.jpg</code>. Clients GET by key. S3 is not a file system and not a block volume — it is a huge, durable key/value store for bytes. Since December 2020, new PUTs, overwrites, and DELETEs are strongly consistent: if you PUT and immediately GET, you see the new data.</p>
+</div>
+
+<p><strong>Durability vs availability</strong> — Durability means “will the object still exist next year?” Multi-AZ classes are designed for <strong>11 nines</strong> of durability. Availability means “can I GET it right now?” An AZ network blip can hurt availability without destroying the object.</p>
+<p><strong>Storage class</strong> — a per-object setting that trades price, retrieval time, and AZ behavior. Standard for frequent access; Intelligent-Tiering when access is unknown; IA and Glacier classes when you read less often or can wait.</p>
+<p><strong>Multipart upload</strong> — required above 5 GB (max object is 5 TB). AWS also recommends it above ~100 MB so failed parts retry without restarting the whole upload.</p>
+
+<h2>How traffic reaches a bucket (from AWS docs)</h2>
+<p>Applications call the S3 API. From a private subnet you usually want traffic to stay on the AWS network. The cheap path for same-Region S3 is a <strong>gateway VPC endpoint</strong> — a route-table prefix list with no hourly charge.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  app[App_or_user] --> api[S3_API_SDK]
+  api --> bucket[Regional_bucket]
+  bucket --> obj[Object_by_key]
+  priv[Private_EC2] --> rtb[Route_table]
+  rtb --> gwep[Gateway_endpoint_S3]
+  gwep --> bucket
+  </div>
+  <p class="caption">Bucket basics: <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html" target="_blank" rel="noopener">What is Amazon S3?</a> Gateway path: <a href="https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-s3.html" target="_blank" rel="noopener">Gateway endpoints for Amazon S3</a>.</p>
+</div>
+
+<p>If the stem is “EC2 in private subnets must read S3, minimize cost, no internet,” pick the <strong>gateway endpoint</strong>. An interface endpoint (PrivateLink) for S3 also exists, costs money, and is the tool when on-premises clients need a private IP over Direct Connect or VPN. Do not send same-Region S3 through a NAT Gateway when a gateway endpoint will do.</p>
+
+<h2>Storage classes — choose by constraints, then cost</h2>
+<p>Meet every constraint first (AZ loss, retrieval time, minimum duration). Only then pick the cheaper class. Multi-AZ in one Region is high availability — not disaster recovery. Cross-Region Replication is the DR answer.</p>
+
+<div class="table-wrap"><table>
+  <thead><tr><th>Class</th><th>AZ behavior</th><th>Retrieval</th><th>Watch out for</th></tr></thead>
+  <tbody>
+    <tr><td>S3 Standard</td><td>≥3 AZs</td><td>Milliseconds</td><td>Default for frequent access; still one Region</td></tr>
+    <tr><td>Intelligent-Tiering</td><td>≥3 AZs</td><td>Milliseconds in Frequent/Infrequent</td><td>No retrieval fee; monitoring fee; objects &lt;128 KB stay in Frequent</td></tr>
+    <tr><td>Standard-IA</td><td>≥3 AZs</td><td>Milliseconds + retrieval fee</td><td>30-day min; 128 KB billable minimum</td></tr>
+    <tr><td>One Zone-IA</td><td><strong>Single AZ</strong></td><td>Milliseconds + retrieval fee</td><td>OK for recreatable data; never the only copy of irreplaceable data</td></tr>
+    <tr><td>Glacier Instant Retrieval</td><td>≥3 AZs</td><td>Milliseconds + retrieval fee</td><td>Archive price with API-style GET; 90-day min</td></tr>
+    <tr><td>Glacier Flexible Retrieval</td><td>≥3 AZs</td><td>Minutes–hours; <strong>restore required</strong></td><td>Wrong if the stem says milliseconds</td></tr>
+    <tr><td>Glacier Deep Archive</td><td>≥3 AZs</td><td>~12–48 hours; restore required</td><td>Cheapest long archive; wrong for same-day needs</td></tr>
+  </tbody>
+</table></div>
+
+<div class="exam-trap"><strong class="label">Cheap but dead</strong> One Zone-IA looks perfect until the stem says “must survive Availability Zone loss.” Reduced Redundancy Storage is a distractor — AWS recommends not using it.</div>
+
+<p>Detail: <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/storage-class-intro.html" target="_blank" rel="noopener">Storage classes</a>.</p>
+
+<h2>Encryption and who can read the bucket</h2>
+<p>New uploads default to <strong>SSE-S3</strong> (Amazon-managed keys). Choose <strong>SSE-KMS</strong> with a customer-managed key when the stem wants a key policy, cross-account decrypt, or CloudTrail of who used the key. <strong>SSE-C</strong> means you provide the key on every request; AWS does not store it. <strong>Client-side encryption</strong> means AWS never sees plaintext.</p>
+<p><strong>S3 Block Public Access</strong> can sit on the account and the bucket. When it is on, a bucket policy with <code>Principal: *</code> does not make the bucket public. For CloudFront in front of a private bucket, use <strong>Origin Access Control (OAC)</strong>: the distribution signs requests; the bucket policy allows only that distribution.</p>
+<p>See <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingEncryption.html" target="_blank" rel="noopener">Protecting data with encryption</a> and <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html" target="_blank" rel="noopener">Block Public Access</a>.</p>
+
+<h2>Versioning, Object Lock, and replication</h2>
+<p><strong>Versioning</strong> keeps prior versions when you overwrite or delete (a delete without a version ID writes a delete marker). You can suspend versioning; you cannot return to “never versioned.”</p>
+<p><strong>MFA Delete</strong> requires the root user to enable. It is not a substitute for Object Lock.</p>
+<p><strong>Object Lock</strong> is WORM. <strong>Governance</strong> mode can be bypassed with a special permission. <strong>Compliance</strong> mode cannot — not even by root — until the retain-until date. A <strong>legal hold</strong> has no expiry until someone with permission lifts it.</p>
+<p><strong>SRR / CRR</strong> need versioning on source and destination. New objects replicate; existing ones need Batch Replication. Delete-marker replication is off by default. CRR is Regional DR; SRR is same-Region aggregation or ownership split.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  q{{What does the stem require}}
+  q -->|survive AZ loss| multi[Multi_AZ_class]
+  q -->|survive Region loss| crr[CRR_second_Region]
+  q -->|nobody can delete for N years| lock[Object_Lock_Compliance]
+  q -->|private EC2 same Region cheapest| gw[Gateway_endpoint]
+  q -->|audit who decrypted| kms[SSE_KMS_CMK]
+  </div>
+  <p class="caption">Decision view for SAA. Replication: <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html" target="_blank" rel="noopener">Replicating objects</a>. Lock: <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html" target="_blank" rel="noopener">S3 Object Lock</a>.</p>
+</div>
+
+<h2>Use case 1 — private path from EC2</h2>
+<p><strong>Need:</strong> Private subnets, same-Region bucket, no internet, lowest cost.</p>
+<p><strong>Design:</strong> Gateway VPC endpoint on the private route tables. Optional bucket policy condition on <code>aws:SourceVpce</code>.</p>
+<div class="mermaid">
+flowchart LR
+  ec2[Private_EC2] --> rtb[Route_table]
+  rtb --> gw[Gateway_endpoint]
+  gw --> s3[S3_same_Region]
+</div>
+
+<h2>Use case 2 — static site with HTTPS, bucket stays private</h2>
+<p><strong>Need:</strong> Custom domain, HTTPS, global cache, origin in S3, bucket not public.</p>
+<p><strong>Design:</strong> CloudFront + OAC + ACM cert on CloudFront. Bucket policy allows only that distribution. S3 website hosting alone is HTTP-only.</p>
+<div class="mermaid">
+flowchart LR
+  user[User] --> cf[CloudFront_OAC]
+  cf --> s3[Private_S3_origin]
+</div>
+
+<h2>Use case 3 — partner upload for fifteen minutes</h2>
+<p><strong>Need:</strong> One PUT from a partner without a public bucket or standing keys in the browser.</p>
+<p><strong>Design:</strong> Backend that already has IAM permission mints a pre-signed PUT URL. Time-boxed; inherits the signer’s permission.</p>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem language</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Private EC2 → S3, same Region, minimize cost</td><td>Gateway VPC endpoint</td><td>NAT Gateway or interface endpoint</td></tr>
+    <tr><td>Unknown access pattern, avoid retrieval fees</td><td>Intelligent-Tiering</td><td>Standard-IA (retrieval fees)</td></tr>
+    <tr><td>Recreatable data; AZ loss OK</td><td>One Zone-IA</td><td>One Zone-IA for irreplaceable masters</td></tr>
+    <tr><td>Milliseconds, rare archive reads</td><td>Glacier Instant Retrieval</td><td>Flexible / Deep Archive (restore)</td></tr>
+    <tr><td>Survive Region failure</td><td>CRR + versioning</td><td>Multi-AZ Standard alone</td></tr>
+    <tr><td>Immutable even against root</td><td>Object Lock Compliance</td><td>Versioning + MFA Delete alone</td></tr>
+    <tr><td>Key policy / audit of decrypt</td><td>SSE-KMS (CMK)</td><td>SSE-S3 default alone</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — class that survives the constraints</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Master videos cannot be recreated (~4 GB) and are read several times a week. Thumbnails can be regenerated. Masters must survive AZ failure. Finance wants the lowest storage cost that still meets those rules.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Masters and thumbnails in One Zone-IA.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Masters in Glacier Flexible Retrieval; thumbnails in Standard.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> Masters in Standard (or Intelligent-Tiering if access varies); thumbnails in One Zone-IA. No Reduced Redundancy.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Both in Standard-IA because it is multi-AZ and cheaper than Standard.</div>
+  <p>A fails AZ loss on masters. B fails weekly editor reads (restore delay). D charges retrieval fees for frequent access. C meets every constraint first.</p>
+</div>
+
+<h2>Case study 2 — private path without burning money</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">EC2 in private subnets in two AZs must GetObject and PutObject against a same-Region bucket. No internet gateway today. Security forbids the public internet. Lowest ongoing cost. No on-premises private-IP requirement.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Add IGW + NAT Gateway; send S3 through NAT.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Interface VPC endpoint for S3 in both AZs.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> Gateway VPC endpoint for S3 on the private route tables; optional <code>aws:SourceVpce</code> on the bucket policy.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Transfer Acceleration from the instances.</div>
+  <p>A violates “no public internet” and costs hourly. B works but bills per AZ. D is for distant clients and still uses public endpoints. C is the free same-Region path.</p>
+</div>
+
+<h2>Case study 3 — immutability root cannot undo</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A bank must keep trade records seven years. Objects must be impossible to delete or overwrite — including by administrators and root. E-discovery holds must persist after the seven-year date if a case is still open.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Versioning + MFA Delete; give root to compliance.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Object Lock Governance mode for seven years.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> Object Lock Compliance mode for seven years, plus legal holds for e-discovery. Versioning comes with Object Lock.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> CRR to another account and deny DeleteObject in identity policies.</div>
+  <p>A still lets root delete with MFA. B is bypassable. D can be changed by an admin. C matches Compliance-mode WORM plus legal hold.</p>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>Meet every constraint, then optimize cost.</strong> Millisecond reads kill Deep Archive. AZ-failure tolerance kills One Zone-IA for the only copy. Region failure needs CRR — Multi-AZ is not DR.</p>
+<p><strong>Intelligent-Tiering has no retrieval fee</strong> but charges monitoring for eligible objects. Under 128 KB stays in Frequent Access.</p>
+<p><strong>Glacier is three products.</strong> Instant Retrieval = GET in milliseconds. Flexible and Deep Archive need a restore job first.</p>
+<p><strong>Replication is not a time machine.</strong> Enable versioning first. Old objects need Batch Replication. RTC is an optional 15-minute SLA, not the default.</p>
+<p><strong>SSE-S3 is default; SSE-KMS is the audit / key-policy answer.</strong></p>
+<p><strong>Notifications</strong> go to Lambda, SQS, SNS, or EventBridge — not straight to Step Functions or an EC2 HTTP endpoint as a first-class destination.</p>
+<p><strong>Gateway endpoints are same-Region only</strong> and exist for S3 and DynamoDB. Cross-Region GET is a different path and you pay transfer.</p>
+
+<div class="exam-tip"><strong class="label">Exam habit</strong> When two S3 answers both store the object safely, keep the one that also matches retrieval time, AZ/Region scope, and who pays. Write “HA ≠ DR” next to every Multi-AZ stem.</div>
+
+<div class="exam-skip"><strong class="label">Light touch on the exam</strong> Exact restore-minute tables, S3 Express One Zone internals, every Batch Operations job type. Know the class family and when restore is required.</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html" target="_blank" rel="noopener">What is Amazon S3?</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/storage-class-intro.html" target="_blank" rel="noopener">Storage classes</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingEncryption.html" target="_blank" rel="noopener">Protecting data with encryption</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.html" target="_blank" rel="noopener">Versioning</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html" target="_blank" rel="noopener">S3 Object Lock</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html" target="_blank" rel="noopener">Replicating objects (SRR / CRR)</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html" target="_blank" rel="noopener">Block Public Access</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html" target="_blank" rel="noopener">Restricting access to an S3 origin (OAC)</a></li>
+  <li><a href="https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-s3.html" target="_blank" rel="noopener">Gateway endpoints for Amazon S3</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../compare/storage.html">Storage picker</a>
+  <a href="../learn/storage.html">EBS, EFS, FSx, Gateway, Snow</a>
+  <a href="../learn/security.html">KMS key policies</a>
+  <a href="../learn/iam.html">IAM policies and roles</a>
+  <a href="../learn/cloudfront.html">CloudFront and OAC</a>
+  <a href="../learn/vpc.html">VPC endpoints and NAT</a>
+  <a href="../exam/domain-1-secure.html">Domain 1 · Secure</a>
+</div>

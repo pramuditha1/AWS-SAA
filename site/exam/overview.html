@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exam overview · SAA-C03 Study</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Sinhala:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/docs.css">
+</head>
+<body data-root="../">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="topbar">
+    <button class="menu-btn" aria-label="Open menu">☰</button>
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">S</span>
+      SAA-C03 <span class="sub">study site</span>
+    </a>
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input id="site-search" type="search" placeholder="Search services…" autocomplete="off">
+      <div id="search-results" hidden></div>
+    </div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar"><div class="nav-group"><h2>Exam</h2><a href="../index.html">Service catalog</a><a class="active" href="../exam/overview.html">Exam overview</a><a href="../exam/domain-1-secure.html">Domain 1 · Secure 30%</a><a href="../exam/domain-2-resilient.html">Domain 2 · Resilient 26%</a><a href="../exam/domain-3-performance.html">Domain 3 · Performance 24%</a><a href="../exam/domain-4-cost.html">Domain 4 · Cost 20%</a><a href="../exam/out-of-scope.html">Out of scope</a></div>
+<div class="nav-group"><h2>Learn</h2><a href="../learn/foundations.html">Foundations</a><a href="../learn/well-architected.html">Well-Architected</a><a href="../learn/iam.html">IAM</a><a href="../learn/identity-federation.html">Cognito &amp; federation</a><a href="../learn/security.html">KMS, WAF, Shield</a><a href="../learn/specialty-security.html">Security extras</a><a href="../learn/s3.html">S3</a><a href="../learn/storage.html">EBS, EFS, FSx</a><a href="../learn/ec2.html">EC2</a><a href="../learn/elb-asg.html">Auto Scaling &amp; ELB</a><a href="../learn/vpc.html">VPC</a><a href="../learn/networking-advanced.html">Hybrid networking</a><a href="../learn/route53.html">Route 53</a><a href="../learn/cloudfront.html">CloudFront &amp; GA</a><a href="../learn/databases.html">RDS, Aurora, ElastiCache</a><a href="../learn/dynamodb.html">DynamoDB &amp; API Gateway</a><a href="../learn/specialty-databases.html">DocumentDB, Neptune</a><a href="../learn/messaging.html">SQS, SNS, Kinesis</a><a href="../learn/lambda.html">Lambda &amp; Step Functions</a><a href="../learn/integration-extras.html">AppSync, MSK, AppFlow</a><a href="../learn/monitoring.html">CloudWatch &amp; CloudTrail</a><a href="../learn/containers.html">ECS, EKS, Fargate</a><a href="../learn/migration.html">Migration &amp; DR</a><a href="../learn/analytics.html">Analytics</a><a href="../learn/governance.html">Organizations &amp; Config</a><a href="../learn/cost.html">Cost optimization</a><a href="../learn/hybrid-edge.html">Outposts &amp; Wavelength</a><a href="../learn/ml.html">Machine learning</a></div>
+<div class="nav-group"><h2>Compare</h2><a href="../compare/storage.html">Storage picker</a><a href="../compare/databases.html">Database picker</a><a href="../compare/messaging.html">Messaging picker</a><a href="../compare/compute.html">Compute picker</a><a href="../compare/networking.html">Networking picker</a><a href="../compare/dr.html">DR picker</a></div>
+<div class="nav-group"><h2>Sinhala</h2><a href="../sinhala/index.html">Sinhala notes</a></div></aside>
+    <main id="main">
+      <div class="crumb">Exam / Overview</div>
+      
+    <h1>SAA-C03 exam overview</h1>
+    <div class="meta-row"><span class="pill domain">Official guide</span><span class="pill must">Read once</span></div>
+    <p class="lede">This exam checks that you can design AWS solutions that are secure, resilient, fast enough, and not wasteful — then improve a design that already exists. You do not need to memorize every API. You need to understand <em>why</em> a service exists and which constraint it satisfies.</p>
+    <div class="fundamentals">
+      <h2>Start here — the W questions</h2>
+      <div class="w-grid">
+        <div class="w-card"><h3>Why</h3><p>AWS wants architects who pick the right building blocks for a business story: who can access what, what happens if an AZ dies, how to scale, and how to avoid paying for idle capacity.</p></div>
+        <div class="w-card"><h3>What</h3><p>65 questions (50 scored), 130 minutes, pass at 720/1000. Multiple choice and multiple response. Compensatory scoring — overall score matters, not a pass in every domain.</p></div>
+        <div class="w-card"><h3>Where</h3><p>Study path on this site: Foundations → high-weight Learn chapters (IAM, S3, VPC, EC2, ELB, databases, messaging) → Compare pickers → practice decoding question verbs.</p></div>
+        <div class="w-card"><h3>Which habit scores</h3><p>Meet <strong>every</strong> constraint in the stem first. Only then choose the cheapest or simplest remaining answer. Multi-AZ is high availability; Multi-Region is disaster recovery.</p></div>
+      </div>
+    </div>
+    <div class="mermaid">flowchart TD
+  req[BusinessRequirement]
+  req --> security[WhoCanAccessAndHowEncrypted]
+  req --> coupling[StatefulOrDecoupled]
+  req --> scale[ScaleVerticallyOrHorizontally]
+  req --> ha[SingleAZ_MultiAZ_Or_MultiRegion]
+  req --> cost[OnDemand_RI_SP_Or_Spot]
+  security --> pick[PickTheSmallestFit]
+  coupling --> pick
+  scale --> pick
+  ha --> pick
+  cost --> pick</div>
+    <h2>Format and scoring</h2>
+    <table>
+      <thead><tr><th>Item</th><th>Detail</th></tr></thead>
+      <tbody>
+        <tr><td>Questions</td><td>65 total: 50 scored + 15 unscored (unmarked)</td></tr>
+        <tr><td>Time</td><td>130 minutes</td></tr>
+        <tr><td>Types</td><td>Multiple choice (1 of 4) and multiple response (2+ of 5+)</td></tr>
+        <tr><td>Score</td><td>Scaled 100–1000. Pass at 720</td></tr>
+        <tr><td>Model</td><td>Compensatory: you need the overall pass, not every domain</td></tr>
+        <tr><td>Guessing</td><td>Unanswered is wrong. There is no penalty for guessing</td></tr>
+      </tbody>
+    </table>
+    <h2>Domain weights</h2>
+    <div class="domain-bar"><span></span><span></span><span></span><span></span></div>
+    <table>
+      <thead><tr><th>Domain</th><th>Weight</th><th>What it really tests</th></tr></thead>
+      <tbody>
+        <tr><td><a href="domain-1-secure.html">1. Design Secure Architectures</a></td><td>30%</td><td>IAM, encryption, VPC isolation, threat services</td></tr>
+        <tr><td><a href="domain-2-resilient.html">2. Design Resilient Architectures</a></td><td>26%</td><td>Decoupling, Multi-AZ, DR, failover</td></tr>
+        <tr><td><a href="domain-3-performance.html">3. Design High-Performing Architectures</a></td><td>24%</td><td>Right storage/compute/DB/network for speed</td></tr>
+        <tr><td><a href="domain-4-cost.html">4. Design Cost-Optimized Architectures</a></td><td>20%</td><td>Cheapest option that still meets the requirement</td></tr>
+      </tbody>
+    </table>
+    <h2>Question language — decode the verb</h2>
+    <div class="says-pick"><div class="if">If the question says</div><div class="then">most cost-effective</div><p>Spot, Savings Plans, S3 lifecycle, serverless, right-size. Drop over-provisioned or unused premium features.</p></div>
+    <div class="says-pick"><div class="if">If the question says</div><div class="then">least operational overhead / operationally efficient</div><p>Managed and serverless: Fargate, Lambda, Aurora Serverless, RDS, S3. Drop self-managed EC2.</p></div>
+    <div class="says-pick"><div class="if">If the question says</div><div class="then">highly available / fault tolerant</div><p>Multi-AZ, ELB, Auto Scaling, Aurora 6 copies, S3 11 nines. Drop single-AZ and single instance.</p></div>
+    <div class="says-pick"><div class="if">If the question says</div><div class="then">secure / least privilege</div><p>Roles not access keys, private subnets, VPC endpoints, KMS CMK, SG not 0.0.0.0/0.</p></div>
+    <div class="exam-trap"><strong class="label">High-score habit</strong> For every practice question, write why the other three options fail. Distractors are valid AWS services used in the wrong constraint.</div>
+    <h2>Official AWS docs</h2><ul class="docs-list"><li><a href="https://docs.aws.amazon.com/aws-certification/latest/solutions-architect-associate-03/solutions-architect-associate-03.html" target="_blank" rel="noopener">SAA-C03 exam guide</a></li><li><a href="https://docs.aws.amazon.com/aws-certification/latest/solutions-architect-associate-03/saa-03-in-scope-services.html" target="_blank" rel="noopener">In-scope services</a></li><li><a href="https://docs.aws.amazon.com/aws-certification/latest/solutions-architect-associate-03/saa-03-out-of-scope-services.html" target="_blank" rel="noopener">Out-of-scope services</a></li></ul>
+    
+    </main>
+  </div>
+  <script src="../assets/js/catalog-data.js"></script>
+  <script src="../assets/js/nav.js?v=2"></script>
+  <script src="../assets/js/search.js"></script>
+  <script src="../assets/js/catalog.js"></script>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "dark",
+      securityLevel: "loose",
+      themeVariables: {
+        darkMode: true,
+        background: "#0a101c",
+        primaryColor: "#243656",
+        primaryTextColor: "#e8eef8",
+        primaryBorderColor: "#ff9900",
+        lineColor: "#9aabc4",
+        secondaryColor: "#1a2438",
+        tertiaryColor: "#121a2b",
+        nodeTextColor: "#e8eef8"
+      }
+    });
+  </script>
+</body>
+</html>

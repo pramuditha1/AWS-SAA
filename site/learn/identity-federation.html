@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cognito and federation · SAA-C03 Study</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Sinhala:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/docs.css">
+</head>
+<body data-root="../">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="topbar">
+    <button class="menu-btn" aria-label="Open menu">☰</button>
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">S</span>
+      SAA-C03 <span class="sub">study site</span>
+    </a>
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input id="site-search" type="search" placeholder="Search services…" autocomplete="off">
+      <div id="search-results" hidden></div>
+    </div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar"><div class="nav-group"><h2>Exam</h2><a href="../index.html">Service catalog</a><a href="../exam/overview.html">Exam overview</a><a href="../exam/domain-1-secure.html">Domain 1 · Secure 30%</a><a href="../exam/domain-2-resilient.html">Domain 2 · Resilient 26%</a><a href="../exam/domain-3-performance.html">Domain 3 · Performance 24%</a><a href="../exam/domain-4-cost.html">Domain 4 · Cost 20%</a><a href="../exam/out-of-scope.html">Out of scope</a></div>
+<div class="nav-group"><h2>Learn</h2><a href="../learn/foundations.html">Foundations</a><a href="../learn/well-architected.html">Well-Architected</a><a href="../learn/iam.html">IAM</a><a class="active" href="../learn/identity-federation.html">Cognito &amp; federation</a><a href="../learn/security.html">KMS, WAF, Shield</a><a href="../learn/specialty-security.html">Security extras</a><a href="../learn/s3.html">S3</a><a href="../learn/storage.html">EBS, EFS, FSx</a><a href="../learn/ec2.html">EC2</a><a href="../learn/elb-asg.html">Auto Scaling &amp; ELB</a><a href="../learn/vpc.html">VPC</a><a href="../learn/networking-advanced.html">Hybrid networking</a><a href="../learn/route53.html">Route 53</a><a href="../learn/cloudfront.html">CloudFront &amp; GA</a><a href="../learn/databases.html">RDS, Aurora, ElastiCache</a><a href="../learn/dynamodb.html">DynamoDB &amp; API Gateway</a><a href="../learn/specialty-databases.html">DocumentDB, Neptune</a><a href="../learn/messaging.html">SQS, SNS, Kinesis</a><a href="../learn/lambda.html">Lambda &amp; Step Functions</a><a href="../learn/integration-extras.html">AppSync, MSK, AppFlow</a><a href="../learn/monitoring.html">CloudWatch &amp; CloudTrail</a><a href="../learn/containers.html">ECS, EKS, Fargate</a><a href="../learn/migration.html">Migration &amp; DR</a><a href="../learn/analytics.html">Analytics</a><a href="../learn/governance.html">Organizations &amp; Config</a><a href="../learn/cost.html">Cost optimization</a><a href="../learn/hybrid-edge.html">Outposts &amp; Wavelength</a><a href="../learn/ml.html">Machine learning</a></div>
+<div class="nav-group"><h2>Compare</h2><a href="../compare/storage.html">Storage picker</a><a href="../compare/databases.html">Database picker</a><a href="../compare/messaging.html">Messaging picker</a><a href="../compare/compute.html">Compute picker</a><a href="../compare/networking.html">Networking picker</a><a href="../compare/dr.html">DR picker</a></div>
+<div class="nav-group"><h2>Sinhala</h2><a href="../sinhala/index.html">Sinhala notes</a></div></aside>
+    <main id="main">
+      <div class="crumb">Learn / Federation</div>
+      <h1>Cognito, IAM Identity Center, and federation</h1>
+<div class="meta-row"><span class="pill should">Should-know</span><span class="pill domain">Domain 1 · Tasks 1.1–1.2</span></div>
+<p class="lede">IAM users do not scale to a million mobile customers, and they are the wrong shape for employees who should open the AWS console with the same login they use for email. This chapter is the identity fork: Cognito for app users, IAM Identity Center for workforce SSO, and Directory Service / SAML when Windows or an external IdP is in the story.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Customers need sign-up, social login, and JWTs for your API. Employees need one portal into many AWS accounts. Windows servers need Active Directory. Mixing those three jobs breaks designs and fails easy exam items.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p><strong>Amazon Cognito</strong> is for application users (customers). <strong>IAM Identity Center</strong> (successor to AWS SSO) is for workforce access to AWS accounts and business apps. <strong>AWS Directory Service</strong> provides Managed Microsoft AD or AD Connector for domain join. <strong>SAML/OIDC federation</strong> lets an external IdP (Okta, Entra ID) prove who someone is.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>Cognito user pools and identity pools are regional. Identity Center is an organization-wide control plane for many accounts. Directory Service runs domain controllers or connectors inside your VPC, often with VPN/Direct Connect back to on-premises AD.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>Cognito user pool vs identity pool · IAM Identity Center permission sets · SAML federation to IAM roles · Managed Microsoft AD vs AD Connector. Those four forks cover almost every stem.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>Three audiences, three tools</h3>
+  <p><strong>App customers</strong> → Cognito. <strong>Employees into AWS</strong> → IAM Identity Center (or classic IAM SAML federation to roles). <strong>Windows domain join / Group Policy / FSx AD</strong> → Directory Service. None of these replace IAM roles; when AWS APIs are called, something still assumes a role and gets temporary credentials from STS.</p>
+</div>
+
+<p><strong>User pool</strong> — Cognito’s managed directory for your app: sign-up, sign-in, MFA, social/SAML IdPs, JWTs (ID, access, refresh). Authenticates people to <em>your application</em>.</p>
+<p><strong>Identity pool</strong> — Cognito federated identities. Exchanges a token for <strong>temporary AWS credentials</strong> (access key, secret, session token) for an IAM role. Does not store your user passwords.</p>
+<p><strong>Permission set</strong> — Identity Center’s template for an IAM role deployed into member accounts (PowerUser in Dev, ReadOnly in Prod).</p>
+<p><strong>SAML 2.0 federation</strong> — your corporate IdP asserts “this employee is Alice”; AWS trusts that assertion and issues a session to a role or to Identity Center.</p>
+
+<h2>Cognito user pools versus identity pools</h2>
+<p>After login, a user pool returns JWTs. API Gateway, AppSync, or an ALB can validate those JWTs. At that point <strong>no AWS credential</strong> has been issued — the user is signed in to your app, not to S3.</p>
+<p>Add an <strong>identity pool</strong> when the mobile or browser SDK must call AWS APIs directly (for example <code>PutObject</code> to a per-user S3 prefix). The identity pool trusts the user-pool token (or a social/SAML token) and vends temporary credentials for a role you defined. Prefer that over shipping long-term access keys in the app binary.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  customer[App_customer] --> up[Cognito_user_pool]
+  up --> jwt[JWT_to_API]
+  up --> idp[Cognito_identity_pool]
+  idp --> role[IAM_role_temp_creds]
+  role --> s3[S3_or_DynamoDB]
+  </div>
+  <p class="caption">Follows <a href="https://docs.aws.amazon.com/cognito/latest/developerguide/what-is-amazon-cognito.html" target="_blank" rel="noopener">What is Amazon Cognito?</a> — user pool for who they are, identity pool for AWS credentials.</p>
+</div>
+
+<div class="table-wrap"><table>
+  <thead><tr><th>Need</th><th>User pool</th><th>Identity pool</th></tr></thead>
+  <tbody>
+    <tr><td>Sign-up, MFA, password reset, hosted UI</td><td>Yes</td><td>No</td></tr>
+    <tr><td>JWT to API Gateway / AppSync / ALB</td><td>Yes</td><td>Not required</td></tr>
+    <tr><td>Temporary AWS credentials for S3 / DynamoDB</td><td>No by itself</td><td>Yes</td></tr>
+    <tr><td>Social / SAML login into the app</td><td>Yes</td><td>Can also accept tokens</td></tr>
+    <tr><td>Guest access to a tiny AWS API surface</td><td>No</td><td>Unauthenticated role (least privilege!)</td></tr>
+  </tbody>
+</table></div>
+
+<div class="exam-trap"><strong class="label">Exam trap</strong> The word “Cognito” alone is not enough. Need AWS credentials → identity pool + IAM roles. Need sign-up and JWT → user pool. Many correct answers include both.</div>
+
+<h2>IAM Identity Center (workforce SSO)</h2>
+<p>Employees open an access portal, pick an AWS account, and receive a permission-set role. Sessions are temporary. MFA lives at the IdP or in Identity Center. You can use the built-in directory for a small staff, or connect Okta / Microsoft Entra ID / Ping with SAML and SCIM, or use Managed Microsoft AD as the identity source.</p>
+<p>Identity Center is <strong>not</strong> a consumer directory for a mobile game. Older materials say “AWS SSO”; prefer <strong>IAM Identity Center</strong> on the exam.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+sequenceDiagram
+  participant Human
+  participant Portal
+  participant IdP
+  participant ICS
+  participant Member
+  Human->>Portal: Open_access_portal
+  Portal->>IdP: Authenticate_workforce_user
+  IdP-->>ICS: SAML_assertion
+  ICS->>Member: Assume_permission_set_role
+  Member-->>Human: Temporary_console_or_CLI_session
+  </div>
+  <p class="caption">Workforce flow from <a href="https://docs.aws.amazon.com/singlesignon/latest/userguide/what-is.html" target="_blank" rel="noopener">What is IAM Identity Center?</a>. SCPs still limit what a permission set can do.</p>
+</div>
+
+<h2>SAML federation without Identity Center</h2>
+<p>You can also federate an IdP directly to IAM roles with SAML (classic pattern: one account, or custom broker). Identity Center is the modern multi-account answer. Either way, humans should not get long-lived IAM user access keys for daily work.</p>
+
+<h2>Directory Service — Managed AD vs AD Connector</h2>
+<p><strong>AWS Managed Microsoft AD</strong> — a real Multi-AZ Microsoft Active Directory that AWS operates. Domain join EC2, FSx for Windows, trusts with on-premises forests, Group Policy. Use when you need AD <em>in AWS</em>.</p>
+<p><strong>AD Connector</strong> — a proxy only. Auth and lookups go to on-premises AD over VPN/Direct Connect. No second writable directory in AWS. If the VPN dies, auth can die with it. Use when identity must stay on-premises.</p>
+<p><strong>Simple AD</strong> — small Samba-based option; for SAA prefer Managed Microsoft AD unless the stem explicitly wants Simple AD.</p>
+<p>Directory Service does not replace Identity Center for multi-account console SSO. Identity Center does not replace Directory Service for Group Policy on FSx.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  employee[Workforce] --> ics[IAM_Identity_Center]
+  ics --> perm[Permission_set]
+  perm --> acct[Member_accounts]
+  onprem[OnPrem_AD] --> adc[AD_Connector]
+  onprem --> mad[Managed_Microsoft_AD_trust]
+  adc --> join[Domain_join_EC2_FSx]
+  mad --> join
+  </div>
+  <p class="caption">Directory options from <a href="https://docs.aws.amazon.com/directoryservice/latest/admin-guide/what_is.html" target="_blank" rel="noopener">AWS Directory Service</a>. Connector proxies; Managed AD is a real directory in AWS.</p>
+</div>
+
+<h2>Use case 1 — mobile app uploads to S3</h2>
+<p><strong>Need:</strong> Millions of customers; email or Google login; upload to <code>s3://bucket/user-id/*</code>; no long-term keys in the app.</p>
+<p><strong>Design:</strong> Cognito user pool (native + Google) + identity pool + IAM role with a prefix condition on <code>sub</code>. Not IAM users per customer. Not Identity Center.</p>
+<div class="mermaid">
+flowchart LR
+  app[Mobile_app] --> up[User_pool]
+  up --> idp[Identity_pool]
+  idp --> s3[S3_prefix]
+</div>
+
+<h2>Use case 2 — employees, many accounts, Okta</h2>
+<p><strong>Need:</strong> Thirty accounts; PowerUser in sandbox, ReadOnly in prod; MFA in Okta; no IAM users per account.</p>
+<p><strong>Design:</strong> IAM Identity Center + Okta as external IdP + permission sets assigned by group. Cognito is the wrong product for console SSO.</p>
+
+<h2>Use case 3 — domain join without a second AD</h2>
+<p><strong>Need:</strong> Windows EC2 and FSx must use existing on-premises Group Policy; no writable AD replica in AWS; VPN exists.</p>
+<p><strong>Design:</strong> AD Connector. Use Identity Center separately if console SSO is also required later.</p>
+
+<h2>How to choose — stem language → pick</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem says…</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Millions of app customers; sign-up; JWT to API</td><td>Cognito user pool</td><td>IAM users; Identity Center</td></tr>
+    <tr><td>Mobile SDK needs temporary AWS credentials</td><td>User pool + identity pool</td><td>User pool alone; access keys in the binary</td></tr>
+    <tr><td>Employees → many AWS accounts with Okta/Entra</td><td>IAM Identity Center</td><td>Cognito hosted UI for console</td></tr>
+    <tr><td>Windows domain join / FSx / GPO in AWS AD</td><td>Managed Microsoft AD</td><td>Cognito</td></tr>
+    <tr><td>Auth against on-prem AD; no directory in AWS</td><td>AD Connector</td><td>Managed AD migration weekend</td></tr>
+    <tr><td>SAML IdP proves employee; assume a role</td><td>Identity Center or IAM SAML federation</td><td>Long-lived IAM user keys</td></tr>
+  </tbody>
+</table></div>
+
+<div class="table-wrap"><table>
+  <thead><tr><th>Service</th><th>Stores users?</th><th>When it is the answer</th></tr></thead>
+  <tbody>
+    <tr><td>Cognito user pool</td><td>Yes — app users</td><td>Sign-up, social login, JWT</td></tr>
+    <tr><td>Cognito identity pool</td><td>No — maps to roles</td><td>Temporary AWS creds</td></tr>
+    <tr><td>IAM Identity Center</td><td>Optional / external IdP</td><td>Workforce SSO to accounts</td></tr>
+    <tr><td>Managed Microsoft AD</td><td>Yes — real AD</td><td>Domain join, FSx, trusts</td></tr>
+    <tr><td>AD Connector</td><td>No — proxy</td><td>On-prem AD must stay authoritative</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — mobile app writes to S3</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A photo app will have millions of customers who sign in with email or Google. After login, the mobile SDK must upload to <code>s3://bucket/user-id/*</code> without long-term access keys in the binary.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Create an IAM user per customer and distribute access keys at sign-up.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Put customers into IAM Identity Center and share one permission set.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> Cognito user pool (native + Google), identity pool that trusts it, IAM role allowing <code>s3:PutObject</code> on <code>…/${cognito-identity.amazonaws.com:sub}/*</code>.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Public <code>s3:PutObject</code> with a random prefix as security.</div>
+</div>
+
+<h2>Case study 2 — Okta and thirty accounts</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Employees already use Okta. Thirty AWS accounts in an organization. Developers need PowerUser in sandbox and ReadOnly in production. MFA in Okta. No IAM users in each account.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Cognito user pool with Okta as SAML IdP; hosted UI opens the AWS console.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> IAM Identity Center, Okta as external IdP, permission sets, assign Okta groups to accounts.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> AD Connector in every account and access keys in Secrets Manager.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> One shared IAM user named <code>developers</code> whose key is on a wiki.</div>
+</div>
+
+<h2>Case study 3 — domain join without moving AD</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Windows EC2 and FSx for Windows must apply existing on-premises Group Policy. Identity must stay in the on-premises forest — no second writable directory in AWS. Site-to-Site VPN exists. Directory is not how contractors enter the AWS console.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Cognito user pool; join Windows to Cognito.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Managed Microsoft AD; migrate all users this weekend; use it for domain join and console SSO.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> AD Connector so domain join and Windows auth proxy to existing AD. Identity Center separately if console SSO is needed later.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Identity pool unauthenticated role; skip Group Policy because IAM exists.</div>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>Cognito ≠ Identity Center.</strong> Customers vs employees.</p>
+<p><strong>User pool ≠ identity pool.</strong> JWT for your API vs temporary AWS credentials.</p>
+<p><strong>Managed AD ≠ AD Connector.</strong> Real directory in AWS vs proxy to on-premises.</p>
+<p><strong>SAML proves identity; IAM roles grant AWS power.</strong> Federation always ends in a role/session for AWS APIs.</p>
+<p><strong>Do not create an IAM user per customer or per daily employee login.</strong> Quotas, keys, and no self-service story.</p>
+
+<div class="exam-skip"><strong class="label">Light touch on the exam</strong> Cognito hosted-UI CSS, SCIM attribute maps, Verified Permissions / Cedar deep dives, Simple AD internals.</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/cognito/latest/developerguide/what-is-amazon-cognito.html" target="_blank" rel="noopener">What is Amazon Cognito?</a></li>
+  <li><a href="https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-identity-pools.html" target="_blank" rel="noopener">Cognito user pools</a></li>
+  <li><a href="https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-identity.html" target="_blank" rel="noopener">Cognito identity pools</a></li>
+  <li><a href="https://docs.aws.amazon.com/singlesignon/latest/userguide/what-is.html" target="_blank" rel="noopener">What is IAM Identity Center?</a></li>
+  <li><a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_saml.html" target="_blank" rel="noopener">SAML 2.0 federation with IAM</a></li>
+  <li><a href="https://docs.aws.amazon.com/directoryservice/latest/admin-guide/what_is.html" target="_blank" rel="noopener">AWS Directory Service</a></li>
+  <li><a href="https://docs.aws.amazon.com/directoryservice/latest/admin-guide/directory_microsoft_ad.html" target="_blank" rel="noopener">AWS Managed Microsoft AD</a></li>
+  <li><a href="https://docs.aws.amazon.com/directoryservice/latest/admin-guide/directory_ad_connector.html" target="_blank" rel="noopener">AD Connector</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/iam.html">IAM roles and STS</a>
+  <a href="../learn/governance.html">Organizations and permission sets</a>
+  <a href="../learn/security.html">KMS and secrets</a>
+  <a href="../learn/specialty-security.html">Security extras</a>
+</div>
+
+    </main>
+  </div>
+  <script src="../assets/js/catalog-data.js"></script>
+  <script src="../assets/js/nav.js?v=2"></script>
+  <script src="../assets/js/search.js"></script>
+  <script src="../assets/js/catalog.js"></script>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "dark",
+      securityLevel: "loose",
+      themeVariables: {
+        darkMode: true,
+        background: "#0a101c",
+        primaryColor: "#243656",
+        primaryTextColor: "#e8eef8",
+        primaryBorderColor: "#ff9900",
+        lineColor: "#9aabc4",
+        secondaryColor: "#1a2438",
+        tertiaryColor: "#121a2b",
+        nodeTextColor: "#e8eef8"
+      }
+    });
+  </script>
+</body>
+</html>

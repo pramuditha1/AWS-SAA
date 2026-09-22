@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ECS, EKS, Fargate · SAA-C03 Study</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Sinhala:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/docs.css">
+</head>
+<body data-root="../">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="topbar">
+    <button class="menu-btn" aria-label="Open menu">☰</button>
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">S</span>
+      SAA-C03 <span class="sub">study site</span>
+    </a>
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input id="site-search" type="search" placeholder="Search services…" autocomplete="off">
+      <div id="search-results" hidden></div>
+    </div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar"><div class="nav-group"><h2>Exam</h2><a href="../index.html">Service catalog</a><a href="../exam/overview.html">Exam overview</a><a href="../exam/domain-1-secure.html">Domain 1 · Secure 30%</a><a href="../exam/domain-2-resilient.html">Domain 2 · Resilient 26%</a><a href="../exam/domain-3-performance.html">Domain 3 · Performance 24%</a><a href="../exam/domain-4-cost.html">Domain 4 · Cost 20%</a><a href="../exam/out-of-scope.html">Out of scope</a></div>
+<div class="nav-group"><h2>Learn</h2><a href="../learn/foundations.html">Foundations</a><a href="../learn/well-architected.html">Well-Architected</a><a href="../learn/iam.html">IAM</a><a href="../learn/identity-federation.html">Cognito &amp; federation</a><a href="../learn/security.html">KMS, WAF, Shield</a><a href="../learn/specialty-security.html">Security extras</a><a href="../learn/s3.html">S3</a><a href="../learn/storage.html">EBS, EFS, FSx</a><a href="../learn/ec2.html">EC2</a><a href="../learn/elb-asg.html">Auto Scaling &amp; ELB</a><a href="../learn/vpc.html">VPC</a><a href="../learn/networking-advanced.html">Hybrid networking</a><a href="../learn/route53.html">Route 53</a><a href="../learn/cloudfront.html">CloudFront &amp; GA</a><a href="../learn/databases.html">RDS, Aurora, ElastiCache</a><a href="../learn/dynamodb.html">DynamoDB &amp; API Gateway</a><a href="../learn/specialty-databases.html">DocumentDB, Neptune</a><a href="../learn/messaging.html">SQS, SNS, Kinesis</a><a href="../learn/lambda.html">Lambda &amp; Step Functions</a><a href="../learn/integration-extras.html">AppSync, MSK, AppFlow</a><a href="../learn/monitoring.html">CloudWatch &amp; CloudTrail</a><a class="active" href="../learn/containers.html">ECS, EKS, Fargate</a><a href="../learn/migration.html">Migration &amp; DR</a><a href="../learn/analytics.html">Analytics</a><a href="../learn/governance.html">Organizations &amp; Config</a><a href="../learn/cost.html">Cost optimization</a><a href="../learn/hybrid-edge.html">Outposts &amp; Wavelength</a><a href="../learn/ml.html">Machine learning</a></div>
+<div class="nav-group"><h2>Compare</h2><a href="../compare/storage.html">Storage picker</a><a href="../compare/databases.html">Database picker</a><a href="../compare/messaging.html">Messaging picker</a><a href="../compare/compute.html">Compute picker</a><a href="../compare/networking.html">Networking picker</a><a href="../compare/dr.html">DR picker</a></div>
+<div class="nav-group"><h2>Sinhala</h2><a href="../sinhala/index.html">Sinhala notes</a></div></aside>
+    <main id="main">
+      <div class="crumb">Learn / Containers</div>
+      <h1>Containers — ECS, EKS, Fargate, and ECR</h1>
+<div class="meta-row"><span class="pill must">Must-know</span><span class="pill domain">Domains 2–4 · run containers without reinventing the fleet</span></div>
+<p class="lede">Containers package your app and its libraries so “it works on my laptop” becomes “it works on the platform.” On AWS you still choose an orchestrator (ECS or EKS) and a compute mode (EC2 you manage, or Fargate that AWS runs). The exam is mostly that fork plus IAM task roles and where images live (ECR).</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>VMs are heavy when you ship many small services. Containers start fast and pack denser. Teams also want the same image in test and prod. Someone still has to schedule, restart, and scale those containers.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p><strong>Amazon ECS</strong> is AWS’s native orchestrator. <strong>Amazon EKS</strong> is managed Kubernetes. <strong>Fargate</strong> is serverless compute for tasks/pods — you do not patch container host EC2. <strong>ECR</strong> is the private image registry.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>Clusters are <strong>Regional</strong>. Tasks/pods run in your VPC subnets (Fargate uses <code>awsvpc</code> networking). Images sit in ECR in a Region (replicate if needed).</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>Task definition · service · Fargate vs EC2 launch · task role vs execution role · ALB integration · EFS for shared files · ECS vs EKS choice. Those cover most SAA container stems.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>Orchestrator vs compute</h3>
+  <p>Think of two knobs. <strong>Orchestrator</strong> decides desired count, restarts, and service discovery (ECS or EKS). <strong>Compute</strong> is where the container process runs (your EC2 capacity, or Fargate). You can mix: ECS+Fargate, ECS+EC2, EKS+Fargate, EKS+EC2.</p>
+</div>
+
+<p><strong>Image</strong> — the packaged filesystem + metadata. Built from a Dockerfile; stored in <strong>ECR</strong>.</p>
+<p><strong>Task definition (ECS)</strong> — blueprint: image, CPU/memory, ports, IAM roles, logging.</p>
+<p><strong>Task</strong> — one running copy. <strong>Service</strong> — keep N tasks healthy and attach them to a load balancer.</p>
+<p><strong>Pod (EKS)</strong> — Kubernetes’ unit (one or more containers). Same Fargate idea: AWS runs the worker OS.</p>
+
+<h2>How a request reaches a container (typical ECS)</h2>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  user[User] --> alb[ALB]
+  alb --> task[ECS_task_awsvpc]
+  task --> ecr[Pulled_image_from_ECR]
+  task --> role[Task_IAM_role]
+  role --> s3[S3_or_other_APIs]
+  </div>
+  <p class="caption">Common pattern from <a href="https://docs.aws.amazon.com/AmazonECS/latest/developerguide/Welcome.html" target="_blank" rel="noopener">What is Amazon ECS?</a> and ALB target groups for tasks.</p>
+</div>
+
+<h2>Fargate vs EC2 launch type</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th></th><th>Fargate</th><th>EC2 launch type</th></tr></thead>
+  <tbody>
+    <tr><td>Who patches the host</td><td>AWS</td><td>You</td></tr>
+    <tr><td>Scaling</td><td>Scale tasks/pods</td><td>Scale tasks <em>and</em> the ASG of instances</td></tr>
+    <tr><td>Billing</td><td>vCPU + memory per task</td><td>The EC2 instances</td></tr>
+    <tr><td>When EC2 wins</td><td>—</td><td>GPU, special AMIs, bin-packing cost at huge steady scale</td></tr>
+    <tr><td>When Fargate wins</td><td>Least ops, spiky work</td><td>—</td></tr>
+  </tbody>
+</table></div>
+
+<p><strong>Task role</strong> — permissions for the <em>application</em> (read S3, write SQS). <strong>Task execution role</strong> — permissions for the <em>agent</em> (pull from ECR, write logs). Mixing them up is a classic trap.</p>
+
+<h2>ECS vs EKS</h2>
+<p>Pick <strong>ECS</strong> when the stem wants AWS-native simplicity and deep ALB/IAM/CloudWatch integration. Pick <strong>EKS</strong> when the stem requires Kubernetes APIs, existing Helm charts, or multi-cloud k8s skills. Both can use Fargate. <strong>Elastic Beanstalk</strong> can run Docker with even less control — use when they want PaaS, not raw orchestration.</p>
+
+<div class="exam-tip"><strong class="label">Remember</strong> “Least operational overhead for containers” → ECS or EKS on <strong>Fargate</strong>. “GPU containers” → EC2 launch type. “App needs S3 access” → <strong>task role</strong>, not only the instance profile.</div>
+
+<h2>Use case 1 — simple API on Fargate</h2>
+<p><strong>Need:</strong> Stateless API, least server management, HTTPS via ALB.</p>
+<p><strong>Design:</strong> ECS service on Fargate, awsvpc ENIs in private subnets, ALB in public subnets, images in ECR, logs to CloudWatch.</p>
+
+<h2>Use case 2 — shared files between tasks</h2>
+<p><strong>Need:</strong> Several tasks read/write the same files.</p>
+<p><strong>Design:</strong> Mount <strong>EFS</strong> in the task definition (works with Fargate). EBS is per-task attachment, not a shared NFS for many tasks.</p>
+
+<h2>Use case 3 — existing Kubernetes platform</h2>
+<p><strong>Need:</strong> Keep Helm, Operators, and kubectl workflows.</p>
+<p><strong>Design:</strong> EKS; choose Fargate profiles or managed node groups. Still use ECR (or another registry).</p>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem language</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Containers, least OS management</td><td>ECS/EKS + Fargate</td><td>Self-managed EC2 only by default</td></tr>
+    <tr><td>Must use Kubernetes API / Helm</td><td>EKS</td><td>ECS alone</td></tr>
+    <tr><td>AWS-native, simple microservices</td><td>ECS</td><td>EKS unless k8s was required</td></tr>
+    <tr><td>GPU / custom host kernel modules</td><td>EC2 launch type / node groups</td><td>Fargate</td></tr>
+    <tr><td>Store private images</td><td>ECR</td><td>Public Docker Hub as the only answer when private is required</td></tr>
+    <tr><td>Permissions for the app code</td><td>Task role (IRSA on EKS)</td><td>Only the EC2 instance role</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — least ops</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Run a containerized web app. Team has no desire to manage AMIs or SSH. Scale on CPU. Images stay private.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> ECS on self-managed EC2 with no Autoscale story for instances.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> ECS (or EKS) on Fargate, ECR, ALB, Service Auto Scaling on CPU.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Spot EC2 only without orchestration.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Lambda — 15-minute limit and different packaging; stem said containers as the unit.</div>
+</div>
+
+<h2>Case study 2 — task role</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Fargate tasks must read one S3 bucket. What grants the app credentials?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Put access keys in the image environment.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Task IAM role with <code>s3:GetObject</code> on that bucket.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Only the task execution role — that pulls images/logs, not app S3 reads.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Make the bucket public.</div>
+</div>
+
+<h2>Case study 3 — ECS vs EKS</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Company standard is Kubernetes; hundreds of Helm charts already exist. They want managed control plane on AWS.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Rewrite everything for ECS task definitions this quarter.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Amazon EKS (Fargate or node groups as needed).</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Elastic Beanstalk single-instance Docker only.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> App Runner when the stem insisted on Kubernetes.</div>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>Fargate still needs a VPC.</strong> Serverless here means “no EC2 hosts to patch,” not “no networking.”</p>
+<p><strong>Dynamic ports + ALB</strong> matter more on EC2 launch type packing; Fargate tasks typically map cleanly with awsvpc.</p>
+<p><strong>ECS Anywhere / EKS Anywhere</strong> — name-level: run AWS-orchestrated containers on-premises. Do not confuse with Outposts.</p>
+<p><strong>Beanstalk vs ECS.</strong> Beanstalk is PaaS convenience; ECS/EKS are when you need container orchestration control.</p>
+
+<div class="exam-skip"><strong class="label">Light touch on the exam</strong> CNI plugin internals, Helm chart authoring, capacity-provider arithmetic details.</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/AmazonECS/latest/developerguide/Welcome.html" target="_blank" rel="noopener">What is Amazon ECS?</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonECS/latest/userguide/what-is-fargate.html" target="_blank" rel="noopener">What is AWS Fargate?</a></li>
+  <li><a href="https://docs.aws.amazon.com/eks/latest/userguide/what-is-eks.html" target="_blank" rel="noopener">What is Amazon EKS?</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonECR/latest/userguide/what-is-ecr.html" target="_blank" rel="noopener">What is Amazon ECR?</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/elb-asg.html">ALB and scaling</a>
+  <a href="../learn/ec2.html">EC2 capacity and Spot</a>
+  <a href="../learn/storage.html">EFS for containers</a>
+  <a href="../compare/compute.html">Compute picker</a>
+</div>
+
+    </main>
+  </div>
+  <script src="../assets/js/catalog-data.js"></script>
+  <script src="../assets/js/nav.js?v=2"></script>
+  <script src="../assets/js/search.js"></script>
+  <script src="../assets/js/catalog.js"></script>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "dark",
+      securityLevel: "loose",
+      themeVariables: {
+        darkMode: true,
+        background: "#0a101c",
+        primaryColor: "#243656",
+        primaryTextColor: "#e8eef8",
+        primaryBorderColor: "#ff9900",
+        lineColor: "#9aabc4",
+        secondaryColor: "#1a2438",
+        tertiaryColor: "#121a2b",
+        nodeTextColor: "#e8eef8"
+      }
+    });
+  </script>
+</body>
+</html>

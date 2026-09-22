@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security extras · SAA-C03 Study</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Sinhala:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/docs.css">
+</head>
+<body data-root="../">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="topbar">
+    <button class="menu-btn" aria-label="Open menu">☰</button>
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">S</span>
+      SAA-C03 <span class="sub">study site</span>
+    </a>
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input id="site-search" type="search" placeholder="Search services…" autocomplete="off">
+      <div id="search-results" hidden></div>
+    </div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar"><div class="nav-group"><h2>Exam</h2><a href="../index.html">Service catalog</a><a href="../exam/overview.html">Exam overview</a><a href="../exam/domain-1-secure.html">Domain 1 · Secure 30%</a><a href="../exam/domain-2-resilient.html">Domain 2 · Resilient 26%</a><a href="../exam/domain-3-performance.html">Domain 3 · Performance 24%</a><a href="../exam/domain-4-cost.html">Domain 4 · Cost 20%</a><a href="../exam/out-of-scope.html">Out of scope</a></div>
+<div class="nav-group"><h2>Learn</h2><a href="../learn/foundations.html">Foundations</a><a href="../learn/well-architected.html">Well-Architected</a><a href="../learn/iam.html">IAM</a><a href="../learn/identity-federation.html">Cognito &amp; federation</a><a href="../learn/security.html">KMS, WAF, Shield</a><a class="active" href="../learn/specialty-security.html">Security extras</a><a href="../learn/s3.html">S3</a><a href="../learn/storage.html">EBS, EFS, FSx</a><a href="../learn/ec2.html">EC2</a><a href="../learn/elb-asg.html">Auto Scaling &amp; ELB</a><a href="../learn/vpc.html">VPC</a><a href="../learn/networking-advanced.html">Hybrid networking</a><a href="../learn/route53.html">Route 53</a><a href="../learn/cloudfront.html">CloudFront &amp; GA</a><a href="../learn/databases.html">RDS, Aurora, ElastiCache</a><a href="../learn/dynamodb.html">DynamoDB &amp; API Gateway</a><a href="../learn/specialty-databases.html">DocumentDB, Neptune</a><a href="../learn/messaging.html">SQS, SNS, Kinesis</a><a href="../learn/lambda.html">Lambda &amp; Step Functions</a><a href="../learn/integration-extras.html">AppSync, MSK, AppFlow</a><a href="../learn/monitoring.html">CloudWatch &amp; CloudTrail</a><a href="../learn/containers.html">ECS, EKS, Fargate</a><a href="../learn/migration.html">Migration &amp; DR</a><a href="../learn/analytics.html">Analytics</a><a href="../learn/governance.html">Organizations &amp; Config</a><a href="../learn/cost.html">Cost optimization</a><a href="../learn/hybrid-edge.html">Outposts &amp; Wavelength</a><a href="../learn/ml.html">Machine learning</a></div>
+<div class="nav-group"><h2>Compare</h2><a href="../compare/storage.html">Storage picker</a><a href="../compare/databases.html">Database picker</a><a href="../compare/messaging.html">Messaging picker</a><a href="../compare/compute.html">Compute picker</a><a href="../compare/networking.html">Networking picker</a><a href="../compare/dr.html">DR picker</a></div>
+<div class="nav-group"><h2>Sinhala</h2><a href="../sinhala/index.html">Sinhala notes</a></div></aside>
+    <main id="main">
+      <div class="crumb">Learn / Security extras</div>
+      <h1>Security extras — RAM, CloudHSM, Artifact, Audit Manager, Detective</h1>
+<div class="meta-row"><span class="pill should">Should / name</span><span class="pill domain">Domain 1 · when KMS and IAM are not enough</span></div>
+<p class="lede">These services appear when the stem has a sharp constraint: share a subnet without copying it, single-tenant HSM keys, download AWS’s own SOC report, map your evidence to a framework, or investigate a GuardDuty finding. Learn them as one-line answers.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Multi-account companies share network pieces. Regulators ask for AWS’s certificates and for your continuous evidence. Incidents need investigation graphs, not more raw logs alone.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p><strong>AWS RAM</strong> shares resources across accounts. <strong>CloudHSM</strong> is single-tenant HSM capacity. <strong>Artifact</strong> hosts AWS compliance reports. <strong>Audit Manager</strong> maps your evidence to frameworks. <strong>Detective</strong> helps investigate findings.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>RAM shares are within an Organization (or invited accounts). CloudHSM clusters sit in your VPC. Artifact and Audit Manager are account/org governance consoles. Detective analyzes data in a Region.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>Shared VPC/TGW via RAM · CloudHSM vs KMS · Artifact vs Audit Manager · Detective after GuardDuty. Stop there for SAA.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge</h2>
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  a[Account_A] --> ram[RAM_share]
+  ram --> b[Account_B_uses_subnet]
+  kms[KMS_multi_tenant] -.-> hsm[CloudHSM_single_tenant]
+  gd[GuardDuty] --> det[Detective]
+  awsReports[Artifact] --> auditor[Auditor]
+  yourEvidence[Audit_Manager] --> framework[PCI_NIST_mapping]
+  </div>
+  <p class="caption">Name-level map. Docs: <a href="https://docs.aws.amazon.com/ram/latest/userguide/what-is.html" target="_blank" rel="noopener">What is AWS RAM?</a>, <a href="https://docs.aws.amazon.com/artifact/latest/ug/what-is-aws-artifact.html" target="_blank" rel="noopener">What is AWS Artifact?</a>.</p>
+</div>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem language</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Share subnet, TGW, resolver rule, license across accounts</td><td>RAM</td><td>Duplicate CIDRs + peering mesh</td></tr>
+    <tr><td>FIPS level 3 / you control single-tenant HSM</td><td>CloudHSM</td><td>Default KMS alone</td></tr>
+    <tr><td>Download AWS SOC/ISO/PCI reports</td><td>Artifact</td><td>Macie; Audit Manager</td></tr>
+    <tr><td>Continuously map your controls to PCI/NIST</td><td>Audit Manager</td><td>Artifact (that is AWS’s packet)</td></tr>
+    <tr><td>Investigate who did what after GuardDuty</td><td>Detective</td><td>Inspector (CVE scan) as the investigator</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — shared subnets</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">App teams in separate accounts must launch ENIs into the same private subnets owned by a network account.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Peering with copied CIDRs in every account.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Share subnets with AWS RAM (shared VPC).</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Exchange long-term access keys.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> PrivateLink for every EC2 instance.</div>
+</div>
+
+<h2>Case study 2 — Artifact vs Audit Manager</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Assessor wants AWS’s SOC 2 PDF, and separately wants your CloudTrail/Config evidence mapped to PCI all year.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Macie for both.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Artifact for AWS’s reports; Audit Manager for your ongoing mapping.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Only Detective.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> CloudHSM.</div>
+</div>
+
+<h2>Tricky points</h2>
+<p><strong>KMS vs CloudHSM.</strong> KMS is multi-tenant managed keys (usual answer). CloudHSM when the stem demands single-tenant HSM control; KMS can use CloudHSM as a custom key store when combined.</p>
+<p><strong>Artifact ≠ your compliance.</strong> Artifact is AWS’s paperwork about AWS.</p>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/ram/latest/userguide/what-is.html" target="_blank" rel="noopener">AWS RAM</a></li>
+  <li><a href="https://docs.aws.amazon.com/cloudhsm/latest/userguide/introduction.html" target="_blank" rel="noopener">AWS CloudHSM</a></li>
+  <li><a href="https://docs.aws.amazon.com/artifact/latest/ug/what-is-aws-artifact.html" target="_blank" rel="noopener">AWS Artifact</a></li>
+  <li><a href="https://docs.aws.amazon.com/audit-manager/latest/userguide/what-is.html" target="_blank" rel="noopener">AWS Audit Manager</a></li>
+  <li><a href="https://docs.aws.amazon.com/detective/latest/userguide/what-is-detective.html" target="_blank" rel="noopener">Amazon Detective</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/security.html">KMS, GuardDuty, Macie</a>
+  <a href="../learn/governance.html">Organizations and Config</a>
+  <a href="../learn/iam.html">IAM</a>
+</div>
+
+    </main>
+  </div>
+  <script src="../assets/js/catalog-data.js"></script>
+  <script src="../assets/js/nav.js?v=2"></script>
+  <script src="../assets/js/search.js"></script>
+  <script src="../assets/js/catalog.js"></script>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "dark",
+      securityLevel: "loose",
+      themeVariables: {
+        darkMode: true,
+        background: "#0a101c",
+        primaryColor: "#243656",
+        primaryTextColor: "#e8eef8",
+        primaryBorderColor: "#ff9900",
+        lineColor: "#9aabc4",
+        secondaryColor: "#1a2438",
+        tertiaryColor: "#121a2b",
+        nodeTextColor: "#e8eef8"
+      }
+    });
+  </script>
+</body>
+</html>

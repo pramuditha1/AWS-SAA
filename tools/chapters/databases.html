@@ -1,0 +1,234 @@
+<h1>RDS, Aurora, ElastiCache, and RDS Proxy — managed databases without SSH</h1>
+<div class="meta-row"><span class="pill must">Must-know</span><span class="pill domain">Domains 2 &amp; 3 · Resilient · Performance</span></div>
+<p class="lede">Amazon RDS runs a relational engine for you: backups, patching, and failover without you SSH-ing into MySQL. Aurora is RDS’s cloud-native engine with storage that already copies data across AZs. ElastiCache speeds reads in memory. RDS Proxy pools connections when Lambda opens too many. The exam’s trick is mixing up Multi-AZ, read replicas, and Multi-Region.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Apps need durable structured data, fast reads, and a plan when an AZ fails. Running Postgres yourself on one EC2 box means you own backups, failover, and patches. Managed databases take that toil — if you pick the right feature for HA vs read scale vs another Region.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p><strong>RDS</strong> is managed MySQL, PostgreSQL, MariaDB, SQL Server, Oracle (and Aurora variants). <strong>Aurora</strong> is a compatible engine with a shared storage fabric. <strong>ElastiCache</strong> is managed Redis or Memcached in front of your database of record. <strong>RDS Proxy</strong> multiplexes many app connections onto fewer DB connections.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>These services run in a <strong>Region</strong>, inside your VPC (subnet groups). Multi-AZ stays inside one Region. A <strong>cross-Region read replica</strong> or <strong>Aurora Global Database</strong> is how you span Regions. Caches and proxies sit near the app tier in the VPC.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>Multi-AZ vs read replica vs Multi-Region · Aurora storage and reader endpoint · encryption (KMS) · RDS Proxy · Redis vs Memcached · automated backups / PITR. Those distinctions decide most SAA database stems.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>RDS in one breath</h3>
+  <p>You choose an engine, instance class, storage, a DB subnet group (two AZs if you want Multi-AZ), and a security group. AWS gives you a DNS endpoint. You do not get SSH. Parameter groups hold engine settings. Automated backups go to S3 during the backup window; point-in-time restore creates a <em>new</em> instance.</p>
+</div>
+
+<p><strong>Encryption at rest</strong> uses KMS. You cannot flip encryption on for an already-running unencrypted RDS instance. The supported path is snapshot → copy snapshot with encryption → restore → cut over.</p>
+<p><strong>Encryption in transit</strong> is the engine’s SSL/TLS (and parameters that reject plaintext).</p>
+<p><strong>When not RDS:</strong> key-value at any scale → DynamoDB; graph → Neptune; this chapter assumes the stem already wants SQL or a cache in front of SQL.</p>
+
+<h2>Multi-AZ vs read replica vs Multi-Region (do not swap these)</h2>
+<p>This is the most important table in the chapter. Read it slowly.</p>
+
+<div class="table-wrap"><table>
+  <thead><tr><th></th><th>Multi-AZ (classic RDS)</th><th>Read replica</th><th>Multi-Region</th></tr></thead>
+  <tbody>
+    <tr><td>What it is</td><td>Synchronous standby in another AZ in the <em>same</em> Region</td><td>Asynchronous copy for reads (same or other Region)</td><td>Cross-Region replica or Aurora Global Database</td></tr>
+    <tr><td>Use for reads?</td><td>No — standby is not a reader</td><td>Yes</td><td>Readers in the secondary Region (design-dependent)</td></tr>
+    <tr><td>Failover</td><td>Automatic; same endpoint name</td><td>Promote manually (new writer story)</td><td>Promote / fail over to the other Region (RTO minutes-scale)</td></tr>
+    <tr><td>RPO idea</td><td>Near-zero for committed writes (sync)</td><td>Can lose last unreplicated transactions</td><td>Async lag — Aurora Global aims for typically under ~1 second</td></tr>
+    <tr><td>Exam sentence</td><td>HA for the writer</td><td>Scale reads / DR building block</td><td>DR or users in another Region</td></tr>
+  </tbody>
+</table></div>
+
+<div class="exam-tip"><strong class="label">Remember</strong> Multi-AZ ≠ read scale. Read replica ≠ sync HA standby. Multi-Region ≠ Multi-AZ. If the stem only says “survive AZ failure,” Multi-AZ (or Aurora’s built-in storage HA) is the answer — not a cross-Region replica.</div>
+
+<p>Some engines also offer <strong>Multi-AZ DB clusters</strong> with readable standbys. If the stem explicitly says that, believe it. If it just says “Multi-AZ,” assume classic: standby is not for reads.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  q{{What does the stem want}}
+  q -->|survive AZ loss same Region| maz[Multi_AZ]
+  q -->|scale reporting reads| rr[Read_replica]
+  q -->|DR or users in another Region| mr[Cross_Region_replica_or_Aurora_Global]
+  q -->|both HA and more reads| both[Multi_AZ_plus_replicas]
+  </div>
+  <p class="caption">Decision view for SAA. Official definitions: <a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.html" target="_blank" rel="noopener">Multi-AZ deployments</a> and <a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReadRepl.html" target="_blank" rel="noopener">Working with read replicas</a>.</p>
+</div>
+
+<h2>How Aurora storage works (from AWS docs)</h2>
+<p>Aurora keeps six copies of your data across three AZs. Compute nodes (one writer, optional readers) attach to that volume. An Aurora replica is another compute reader on the <em>same</em> durable storage — not a second slow binlog copy like classic MySQL replication.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  writer[Aurora_writer] --> vol[Shared_cluster_volume]
+  reader1[Aurora_reader] --> vol
+  reader2[Aurora_reader] --> vol
+  vol --> az1[Copy_AZ1]
+  vol --> az2[Copy_AZ2]
+  vol --> az3[Copy_AZ3]
+  app[App] --> clusterEP[Cluster_endpoint_writer]
+  app --> readerEP[Reader_endpoint]
+  readerEP --> reader1
+  readerEP --> reader2
+  </div>
+  <p class="caption">Follows the Aurora storage and endpoint model in <a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.html" target="_blank" rel="noopener">Amazon Aurora DB clusters</a>. Open that page for AWS’s official diagrams.</p>
+</div>
+
+<p><strong>Cluster endpoint</strong> — always points at the current writer. <strong>Reader endpoint</strong> — load-balances across Aurora replicas. Apps must reconnect after failover (DNS changes).</p>
+<p><strong>Aurora Serverless v2</strong> — capacity in ACUs that scale with load; good for bursty or intermittent relational work. Steady 24/7 load often stays cheaper on provisioned instances.</p>
+<p><strong>Aurora Global Database</strong> — managed Multi-Region Aurora with storage-level replication (typical lag under one second). The low-RPO / minutes-RTO Multi-Region answer for Aurora — better than “copy snapshots every hour” when the stem asks for least ops and tight RPO.</p>
+<p><strong>Cloning</strong> — fast copy-on-write cluster for QA. <strong>Backtrack</strong> (MySQL-compatible) — rewind the writer in-place for a window; not a substitute for backups.</p>
+
+<h2>RDS Proxy — when connections are the outage</h2>
+<p>Each DB connection costs memory on the writer. Hundreds of Lambda environments that each open a connection can hit <code>max_connections</code> before they hit CPU. <strong>RDS Proxy</strong> sits between the app and RDS/Aurora, reuses fewer DB connections, can shorten failover pain for the client, and pairs with IAM auth / Secrets Manager so passwords are not in the function code.</p>
+<p>Proxy is not a cache, not Multi-AZ, and not encryption. Slow reads → replicas, bigger instance, or ElastiCache — not Proxy.</p>
+
+<h2>ElastiCache — Redis vs Memcached</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th></th><th>Redis (Redis-compatible)</th><th>Memcached</th></tr></thead>
+  <tbody>
+    <tr><td>Data</td><td>Strings, lists, sets, sorted sets, hashes, pub/sub</td><td>Simple key/value objects</td></tr>
+    <tr><td>Persistence</td><td>Optional — can survive restart</td><td>None — memory only</td></tr>
+    <tr><td>HA</td><td>Primary + replicas, failover, Multi-AZ</td><td>Multiple nodes, no replica failover story</td></tr>
+    <tr><td>Exam reflex</td><td>Sessions, leaderboards, HA cache</td><td>Simple, volatile, multithreaded object cache</td></tr>
+  </tbody>
+</table></div>
+
+<p><strong>Lazy loading (cache-aside)</strong> — read cache; on miss read RDS then fill cache. <strong>Write-through</strong> — update cache when you write the DB. <strong>TTL</strong> expires stale keys. The database of record for orders is still RDS/Aurora/DynamoDB — the cache accelerates; it does not replace durability requirements.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+sequenceDiagram
+  participant App
+  participant Cache
+  participant RDS
+  App->>Cache: Get_key
+  alt hit
+    Cache-->>App: value
+  else miss
+    App->>RDS: SELECT
+    RDS-->>App: row
+    App->>Cache: Set_key_TTL
+  end
+  </div>
+  <p class="caption">Lazy-loading pattern commonly paired with ElastiCache. See <a href="https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/Strategies.html" target="_blank" rel="noopener">Caching strategies</a>.</p>
+</div>
+
+<h2>Use case 1 — HA writer in one Region</h2>
+<p><strong>Need:</strong> Survive AZ failure; same connection string; no read-scale story in the stem.</p>
+<p><strong>Design:</strong> RDS Multi-AZ (or Aurora, which already spreads storage across three AZs). Do not answer with “add a read replica” alone.</p>
+<div class="mermaid">
+flowchart LR
+  app[App] --> ep[RDS_endpoint]
+  ep --> primary[Primary_AZ_a]
+  primary -->|sync| standby[Standby_AZ_b]
+</div>
+
+<h2>Use case 2 — reporting pile-on</h2>
+<p><strong>Need:</strong> Dashboards hammer SELECT; writes must stay healthy.</p>
+<p><strong>Design:</strong> Read replicas (or Aurora readers) for reporting; keep Multi-AZ for writer HA. Or put hot keys in ElastiCache.</p>
+<div class="mermaid">
+flowchart LR
+  writeApp[Write_app] --> writer[Writer]
+  report[Reporting] --> rr[Read_replicas]
+  writer -->|async| rr
+</div>
+
+<h2>Use case 3 — Multi-Region DR with low RPO (Aurora)</h2>
+<p><strong>Need:</strong> Secondary Region, RPO about a second, RTO of minutes, least ops.</p>
+<p><strong>Design:</strong> Aurora Global Database. Not hourly snapshot copy. Classic cross-Region RDS replicas work but usually mean more lag and more manual promote story.</p>
+<div class="mermaid">
+flowchart LR
+  primary[Aurora_primary_Region] -->|storage_replication| secondary[Aurora_secondary_Region]
+</div>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem language</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Survive AZ failure, same endpoint</td><td>Multi-AZ (or Aurora)</td><td>Read replica alone as “HA”</td></tr>
+    <tr><td>Scale read-heavy reporting</td><td>Read replicas / Aurora readers / cache</td><td>Point reports at Multi-AZ standby</td></tr>
+    <tr><td>DR in another Region, Aurora, low RPO</td><td>Aurora Global Database</td><td>Multi-AZ only (same Region)</td></tr>
+    <tr><td>Lambda too many DB connections</td><td>RDS Proxy</td><td>ElastiCache as a “connection pool”</td></tr>
+    <tr><td>Sessions / leaderboards / HA cache</td><td>ElastiCache Redis</td><td>Memcached when they need failover + structures</td></tr>
+    <tr><td>Encrypt existing unencrypted RDS</td><td>Snapshot → encrypted copy → restore</td><td>“Enable encryption” checkbox in place</td></tr>
+    <tr><td>Bursty quiet relational workload</td><td>Aurora Serverless v2</td><td>Huge provisioned instance idle all night</td></tr>
+    <tr><td>Must not lose orders</td><td>RDS/Aurora/DynamoDB as system of record</td><td>Memcached as database of record</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — Multi-AZ vs replica</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A production PostgreSQL database on RDS must stay available if one Availability Zone fails. Reporting can stay slightly behind. Leadership does not ask for another Region. What do you enable first?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> A cross-Region read replica only — “that covers everything.”</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Multi-AZ deployment for automatic failover in the Region. Add a read replica later if reporting needs scale.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Point the app at a read replica and call that failover.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Disable automated backups to speed up writes.</div>
+  <p>AZ failure in one Region is Multi-AZ’s job. Cross-Region is Multi-Region DR, not the ask. Replicas are async and not the automatic same-endpoint HA story. Backups off hurts recovery and can block features.</p>
+</div>
+
+<h2>Case study 2 — Lambda connection storm</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A bursty Lambda function writes to Aurora. During peaks the database hits max connections and errors. Reads are fine. Secrets should not live in the function package. What helps most?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Add five Aurora read replicas and send Lambda to the reader endpoint.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Put RDS Proxy in front of Aurora; use Secrets Manager / IAM auth with the proxy.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Move all data to Memcached.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Switch to Multi-AZ only — “failover will fix connections.”</div>
+  <p>Writes need the writer; replicas do not absorb writer connection storms. Memcached is not a durable store. Multi-AZ does not pool connections. Proxy is built for this.</p>
+</div>
+
+<h2>Case study 3 — Aurora Multi-Region</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Aurora MySQL in us-east-1 must support disaster recovery in eu-west-1 with RPO of about one second and RTO of minutes, with least operational effort. What fits?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Multi-AZ in us-east-1 only.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Manual snapshot copy to eu-west-1 every hour.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> Aurora Global Database with a secondary Region in eu-west-1.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> ElastiCache Global Datastore as the database of record.</div>
+  <p>Multi-AZ is same-Region. Hourly snapshots miss the RPO. Cache is not the system of record. Global Database matches the RPO/RTO and ops story.</p>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>Multi-AZ standby is not a reader</strong> on classic RDS instance deployments. Do not load-balance writes or reports onto it.</p>
+<p><strong>Read replicas are asynchronous.</strong> Promotion is a deliberate DR/migration step; expect lag and a new writer story unless you re-point DNS carefully.</p>
+<p><strong>Multi-Region is a different problem than Multi-AZ.</strong> Same-Region HA first; cross-Region only when the stem asks for another Region or DR.</p>
+<p><strong>Encryption cannot be toggled on in place</strong> for unencrypted RDS — snapshot, encrypted copy, restore.</p>
+<p><strong>PITR creates a new instance</strong> — it is recovery, not an in-place undo of one bad row on the live endpoint.</p>
+<p><strong>RDS Proxy ≠ ElastiCache.</strong> Connections vs cached data.</p>
+<p><strong>Redis ≠ Memcached.</strong> Structures, optional persistence, and HA vs simple volatile cache.</p>
+
+<div class="exam-skip"><strong class="label">Light touch on the exam</strong> Every Aurora Parallel Query knob, OEM option groups, exact failover second counts. Know Multi-AZ / replica / Global / Proxy / cache contrasts.</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Welcome.html" target="_blank" rel="noopener">What is Amazon RDS?</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.html" target="_blank" rel="noopener">Multi-AZ deployments</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ReadRepl.html" target="_blank" rel="noopener">Read replicas</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/CHAP_AuroraOverview.html" target="_blank" rel="noopener">What is Amazon Aurora?</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.html" target="_blank" rel="noopener">Aurora DB clusters</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html" target="_blank" rel="noopener">Aurora Global Database</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.html" target="_blank" rel="noopener">Amazon RDS Proxy</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/WhatIs.html" target="_blank" rel="noopener">What is Amazon ElastiCache?</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/Strategies.html" target="_blank" rel="noopener">Caching strategies</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/dynamodb.html">DynamoDB</a>
+  <a href="../learn/specialty-databases.html">Specialty databases</a>
+  <a href="../learn/elb-asg.html">Load balancers and sessions</a>
+  <a href="../learn/lambda.html">Lambda</a>
+  <a href="../compare/dr.html">DR picker</a>
+</div>

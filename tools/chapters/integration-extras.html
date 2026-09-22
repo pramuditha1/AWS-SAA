@@ -1,0 +1,88 @@
+<h1>Integration extras — AppSync, MSK, and AppFlow</h1>
+<div class="meta-row"><span class="pill should">Should / name</span><span class="pill domain">Domain 2 · when SQS/API Gateway is not the named fit</span></div>
+<p class="lede">Default SAA decoupling is SQS, SNS, EventBridge, Kinesis, and API Gateway. These three extras appear when the stem names GraphQL, Apache Kafka, or “pull Salesforce into S3 without writing Glue.”</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Mobile apps want GraphQL subscriptions. Kafka estates refuse a rewrite to Kinesis. SaaS admins want scheduled sync without custom connectors.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p><strong>AWS AppSync</strong> — managed GraphQL (and real-time subscriptions). <strong>Amazon MSK</strong> — managed Apache Kafka. <strong>Amazon AppFlow</strong> — no-code SaaS ↔ AWS data flows.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>Regional managed services. MSK brokers live in your VPC. AppSync is an AWS endpoint in front of data sources (DynamoDB, Lambda, HTTP). AppFlow runs in a Region to S3/Redshift/etc.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>GraphQL → AppSync · Kafka API → MSK · AWS-native stream → Kinesis · SaaS to S3 → AppFlow. Do not pick both MSK and Kinesis for the same constraint.</p>
+    </div>
+  </div>
+</div>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  q{{Named_need}}
+  q -->|GraphQL_subs_offline| appsync[AppSync]
+  q -->|Kafka_API| msk[MSK]
+  q -->|AWS_native_stream| kin[Kinesis]
+  q -->|SaaS_to_S3_no_code| flow[AppFlow]
+  </div>
+  <p class="caption">Extras fork. Docs: <a href="https://docs.aws.amazon.com/appsync/latest/devguide/what-is-appsync.html" target="_blank" rel="noopener">What is AWS AppSync?</a>, <a href="https://docs.aws.amazon.com/msk/latest/developerguide/what-is-msk.html" target="_blank" rel="noopener">What is Amazon MSK?</a>, <a href="https://docs.aws.amazon.com/appflow/latest/userguide/what-is-appflow.html" target="_blank" rel="noopener">What is Amazon AppFlow?</a>.</p>
+</div>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem</th><th>Pick</th><th>Common distractor</th></tr></thead>
+  <tbody>
+    <tr><td>GraphQL, subscriptions, offline sync</td><td>AppSync</td><td>API Gateway REST only; DynamoDB Streams alone</td></tr>
+    <tr><td>Keep Kafka producers/consumers/partitions</td><td>MSK</td><td>Kinesis rewrite; Amazon MQ (not Kafka)</td></tr>
+    <tr><td>New AWS-native analytics stream</td><td>Kinesis</td><td>MSK when Kafka was never required</td></tr>
+    <tr><td>Salesforce/ServiceNow → S3/Redshift, least code</td><td>AppFlow</td><td>Custom Lambda connectors; DMS (databases)</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — Kafka stay Kafka</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">On-premises Kafka must move to AWS; consumer groups and partition keys stay; no producer rewrite this quarter.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Kinesis PutRecords rewrite.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Amazon MSK.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> SQS FIFO.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Amazon MQ ActiveMQ.</div>
+</div>
+
+<h2>Case study 2 — GraphQL mobile</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Mobile app needs GraphQL with real-time subscriptions on DynamoDB changes and offline sync; least ops.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Hand-rolled API Gateway + WebSockets.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> AWS AppSync with DynamoDB data source.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> MSK as the client API.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> AppFlow.</div>
+</div>
+
+<div class="exam-tip"><strong class="label">Remember</strong> Kafka API → MSK. AWS-native stream → Kinesis. GraphQL → AppSync. SaaS sync → AppFlow.</div>
+
+<h2>Tricky points</h2>
+<p><strong>MSK ≠ Amazon MQ.</strong> MQ is ActiveMQ/RabbitMQ/JMS. Kafka clients need MSK (or self-managed Kafka).</p>
+<p><strong>AppFlow ≠ DMS.</strong> DMS moves databases. AppFlow moves SaaS application data.</p>
+<p><strong>AppSync ≠ API Gateway REST.</strong> When the stem says GraphQL/subscriptions, AppSync is the managed fit.</p>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/appsync/latest/devguide/what-is-appsync.html" target="_blank" rel="noopener">AWS AppSync</a></li>
+  <li><a href="https://docs.aws.amazon.com/msk/latest/developerguide/what-is-msk.html" target="_blank" rel="noopener">Amazon MSK</a></li>
+  <li><a href="https://docs.aws.amazon.com/appflow/latest/userguide/what-is-appflow.html" target="_blank" rel="noopener">Amazon AppFlow</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../compare/messaging.html">Messaging picker</a>
+  <a href="../learn/messaging.html">Kinesis / SQS / SNS</a>
+  <a href="../learn/dynamodb.html">API Gateway and DynamoDB</a>
+</div>

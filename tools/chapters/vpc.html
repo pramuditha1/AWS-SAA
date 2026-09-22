@@ -1,0 +1,206 @@
+<h1>Amazon VPC — the private network your apps live in</h1>
+<div class="meta-row"><span class="pill must">Must-know</span><span class="pill domain">Domain 1 · Secure · Domain 2 · Resilient · Domain 3</span></div>
+<p class="lede">A VPC is your private network inside an AWS Region. Subnets, route tables, gateways, and firewalls decide who can talk to whom. On the exam you place workloads across Availability Zones, keep databases private, and pick the cheapest path that still meets every security and HA constraint.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Cloud servers need IP addresses, routes, and firewalls — just like an office datacenter — but shared with millions of other customers. You need a logically isolated network so your app is not on the open internet by default.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p>An <strong>Amazon VPC</strong> (Virtual Private Cloud) is a Regional, logically isolated virtual network. You carve it into <strong>subnets</strong>, attach <strong>route tables</strong>, and control traffic with <strong>security groups</strong> and optional <strong>network ACLs</strong>. Internet access uses an internet gateway or a NAT Gateway; private AWS API access often uses VPC endpoints.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>A VPC spans one <strong>Region</strong> (all AZs in that Region). Each <strong>subnet sits in exactly one Availability Zone</strong>. An ENI, NAT Gateway, or EBS volume in that subnet is AZ-bound. Multi-AZ HA means resources in more than one subnet/AZ.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>Subnet + route table · IGW vs NAT · security group vs NACL · gateway vs interface endpoint · peering vs Transit Gateway · Multi-AZ placement. Those ideas cover almost every SAA VPC question.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>Public vs private — it is the route table</h3>
+  <p>A <strong>public subnet</strong> is a subnet whose route table sends <code>0.0.0.0/0</code> to an <strong>internet gateway (IGW)</strong>. A <strong>private subnet</strong> has no route to an IGW. Auto-assign public IP is a convenience, not the definition. Read the route table — not the subnet’s display name.</p>
+</div>
+
+<p><strong>CIDR</strong> — the IPv4 address range of the VPC (between /16 and /28). Subnets carve slices of that range. Overlapping CIDRs block VPC peering.</p>
+<p><strong>Five reserved addresses</strong> — AWS keeps five IPs in every subnet (network, router, DNS, future use, broadcast). A /24 gives 251 usable addresses, not 256.</p>
+<p><strong>ENI</strong> — Elastic Network Interface, the virtual network card on an instance, load balancer node, or interface endpoint. Security groups attach to ENIs.</p>
+
+<h2>How a packet moves (from AWS docs)</h2>
+<p>Traffic hits the subnet’s network ACL first, then the ENI’s security group. Outbound, a stateful security group remembers the connection; a stateless NACL needs matching return (ephemeral) rules.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  pkt[Packet] --> nacl[NACL_subnet_stateless]
+  nacl --> sg[Security_group_ENI_stateful]
+  sg --> eni[Instance_ENI]
+  </div>
+  <p class="caption">Security layers: <a href="https://docs.aws.amazon.com/vpc/latest/userguide/vpc-security-groups.html" target="_blank" rel="noopener">Security groups</a> and <a href="https://docs.aws.amazon.com/vpc/latest/userguide/vpc-network-acls.html" target="_blank" rel="noopener">Network ACLs</a>. Overview: <a href="https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html" target="_blank" rel="noopener">What is Amazon VPC?</a></p>
+</div>
+
+<p>A typical Multi-AZ layout: public subnets for load balancers and NAT Gateways; private subnets for app and database tiers; one NAT per AZ if private instances need outbound internet and HA is required.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  vpc[VPC_Regional] --> pubA[Public_subnet_AZa]
+  vpc --> pubB[Public_subnet_AZb]
+  vpc --> privA[Private_subnet_AZa]
+  vpc --> privB[Private_subnet_AZb]
+  pubA --> igw[Internet_gateway]
+  pubB --> igw
+  pubA --> natA[NAT_Gateway_AZa]
+  pubB --> natB[NAT_Gateway_AZb]
+  privA --> natA
+  privB --> natB
+  privA --> gwep[Gateway_endpoint_S3]
+  privB --> gwep
+  </div>
+  <p class="caption">Multi-AZ pattern with NAT and a free S3 gateway endpoint. NAT: <a href="https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat-gateway.html" target="_blank" rel="noopener">NAT gateways</a>. Endpoints: <a href="https://docs.aws.amazon.com/vpc/latest/privatelink/gateway-endpoints.html" target="_blank" rel="noopener">Gateway endpoints</a>.</p>
+</div>
+
+<h2>Security group vs network ACL</h2>
+<p>A <strong>security group</strong> attaches to an ENI. It is <strong>stateful</strong>: allow inbound 443 and return traffic is allowed automatically. Rules are allow-only — you cannot write a deny. Prefer referencing another security group as a source (“app SG may reach db SG on 5432”) so Auto Scaling IP changes do not break you.</p>
+<p>A <strong>network ACL (NACL)</strong> attaches to a subnet. It is <strong>stateless</strong>: inbound allow does not open the return path. You must also allow ephemeral ports (often 1024–65535) outbound. Rules are numbered; first match wins; explicit <strong>DENY</strong> exists. “Block this one attacker IP for every instance in the subnet” is a NACL answer. Security groups cannot deny.</p>
+<p>Default NACL allows all traffic. Custom NACLs start closed. If someone “opened the security group and it still fails,” think NACL ephemeral ports, missing routes, or missing public IPs — not a security-group deny.</p>
+
+<h2>Internet path, NAT, and endpoints</h2>
+<p>An <strong>internet gateway</strong> is Regional and highly available. One IGW per VPC. You do not build two for HA.</p>
+<p>A <strong>NAT Gateway</strong> sits in a <em>public</em> subnet with an Elastic IP. Private subnets send default traffic to it for outbound IPv4 without inbound reachability. NAT is <strong>AZ-bound</strong>: for Multi-AZ outbound HA, place one NAT per AZ and point each private subnet at its local NAT. NAT Gateways have no security groups. Prefer NAT Gateway over a NAT instance unless the stem wants a security group on the NAT.</p>
+<p><strong>Gateway endpoints</strong> (free) exist for <strong>S3 and DynamoDB only</strong>. They update route tables. <strong>Interface endpoints</strong> (PrivateLink) create ENIs, cost money, and cover most other AWS APIs — and optional S3 when on-premises needs a private IP.</p>
+<p>IPv6 outbound-only uses an <strong>egress-only internet gateway</strong>, not a NAT Gateway.</p>
+
+<h2>Peering vs Transit Gateway</h2>
+<p><strong>VPC peering</strong> connects two VPCs. It is not transitive: A↔Shared and B↔Shared does not give A↔B. CIDRs must not overlap. You must add routes both ways.</p>
+<p>When many VPCs (and maybe on-premises) must talk, use a <strong>transit gateway</strong> — a Regional hub with transitive routing according to the TGW route tables you write. There is no “enable transitive peering” checkbox.</p>
+<p>Detail: <a href="https://docs.aws.amazon.com/vpc/latest/peering/what-is-vpc-peering.html" target="_blank" rel="noopener">VPC peering</a>.</p>
+
+<h2>Use case 1 — three-tier web app, Multi-AZ</h2>
+<p><strong>Need:</strong> Internet users hit HTTPS; app and database stay private; survive one AZ failure.</p>
+<p><strong>Design:</strong> Public subnets: ALB only. Private: app ASG. More-private: RDS. Security groups chained ALB → app → db. NAT per AZ if the app needs outbound patches. No IGW route on the database subnet.</p>
+<div class="mermaid">
+flowchart LR
+  user[Users] --> alb[ALB_public]
+  alb --> app[App_ASG_private]
+  app --> db[RDS_private]
+</div>
+
+<h2>Use case 2 — private S3 without NAT cost</h2>
+<p><strong>Need:</strong> Private EC2 must use S3 and DynamoDB in the same Region; minimize cost.</p>
+<p><strong>Design:</strong> Gateway endpoints on the private route tables. Use interface endpoints for Secrets Manager, ECR, SSM, and similar — there is no gateway endpoint for those.</p>
+<div class="mermaid">
+flowchart LR
+  ec2[Private_EC2] --> gw[Gateway_endpoint]
+  gw --> s3[S3_or_DynamoDB]
+</div>
+
+<h2>Use case 3 — operators without opening SSH to the world</h2>
+<p><strong>Need:</strong> Reach private Linux instances; no inbound port 22 from the internet.</p>
+<p><strong>Design:</strong> SSM Session Manager with an instance profile and a path to SSM endpoints (NAT or interface endpoints for <code>ssm</code>, <code>ssmmessages</code>, <code>ec2messages</code>). A locked-down bastion is the older pattern.</p>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem language</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Private EC2 → S3/DynamoDB, minimize cost</td><td>Gateway endpoint</td><td>NAT or interface endpoint</td></tr>
+    <tr><td>Private EC2 → Secrets Manager / ECR / SSM</td><td>Interface endpoints</td><td>“Gateway endpoint for SSM”</td></tr>
+    <tr><td>Block one hostile /32 for a whole subnet</td><td>NACL DENY (low rule number)</td><td>Security group deny (impossible)</td></tr>
+    <tr><td>Only ALB may reach app instances</td><td>SG source = ALB security group</td><td>Opening the app to 0.0.0.0/0</td></tr>
+    <tr><td>Many VPCs must all talk</td><td>Transit Gateway</td><td>Transitive peering (does not exist)</td></tr>
+    <tr><td>Outbound IPv6 only</td><td>Egress-only IGW</td><td>NAT Gateway</td></tr>
+    <tr><td>Patch if an AZ fails</td><td>NAT Gateway per AZ</td><td>One shared NAT for all AZs</td></tr>
+  </tbody>
+</table></div>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  q{{What does the question want}}
+  q -->|S3 same Region cheap private| gw[Gateway_endpoint]
+  q -->|deny one IP at subnet| nacl[NACL_DENY]
+  q -->|allow only from ALB| sg[SG_reference]
+  q -->|many VPCs talk| tgw[Transit_Gateway]
+  q -->|HA outbound internet| nat[NAT_per_AZ]
+  </div>
+  <p class="caption">Decision view for SAA. Subnets: <a href="https://docs.aws.amazon.com/vpc/latest/userguide/configure-subnets.html" target="_blank" rel="noopener">Configure subnets</a>.</p>
+</div>
+
+<h2>Case study 1 — NAT placement is an HA question</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">App instances in private subnets in <code>us-east-1a</code> and <code>us-east-1b</code> must pull OS patches from the internet. Design must still patch if an AZ fails. S3 traffic in <code>us-east-1</code> must not traverse the internet and should minimize cost.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> One NAT in <code>us-east-1a</code> for both private route tables; S3 via that NAT.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> One NAT per AZ, plus an interface endpoint for S3 in both AZs.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> One NAT per AZ (each private subnet → local NAT) plus a gateway VPC endpoint for S3.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> No NAT; gateway endpoints for S3 and “for the internet.”</div>
+  <p>A fails AZ HA and bills S3 through NAT. B meets HA but pays for PrivateLink S3. D invents a gateway endpoint for the internet. C is Multi-AZ for patches and free for same-Region S3.</p>
+</div>
+
+<h2>Case study 2 — the firewall that can say no</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Security wants one hostile /32 blocked at the subnet boundary for every instance, including future ENIs. Instances already allow only the ALB via security groups. After a contractor added a custom NACL allowing inbound 443, some legitimate clients stall during the handshake.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Add a deny for the /32 on the instances’ security group.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Move instances to a public subnet so they share one NACL with the ALB.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> Low-numbered NACL DENY for that /32; keep SG allow-list from the ALB; add ephemeral port ALLOWs so the stateless NACL does not drop return traffic.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Enable Flow Logs and rely on GuardDuty to block the IP automatically.</div>
+  <p>Security groups cannot deny. D is detective, not preventive. C uses the only VPC deny primitive and fixes the forgotten ephemeral ports that caused handshake stalls.</p>
+</div>
+
+<h2>Case study 3 — peering is a pair, not a hub</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Three VPCs: Shared, AppA, AppB. AppA and AppB are each peered with Shared. Apps in AppA must open TCP to AppB. More app VPCs will arrive; the team does not want a full mesh.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Enable transitive peering on Shared so AppA hairpins to AppB.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Add routes in AppA/AppB for each other’s CIDR targeting the Shared peering.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> Attach all three VPCs to a transit gateway and route spoke-to-spoke on TGW route tables.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> NAT Gateway in Shared and default-route AppA and AppB through it.</div>
+  <p>Transitive peering does not exist. Routes through Shared do not make Shared a router for third-party CIDRs. C is the documented hub-and-spoke that still works at the tenth VPC.</p>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>Public is a route, not a label.</strong> You need IGW attached, route to the IGW, and a public/Elastic IP on the ENI for inbound/outbound via the IGW. NAT is how private instances get outbound IPv4 without a public IP on the instance.</p>
+<p><strong>NAT Gateway is AZ-bound, billed, and IPv4.</strong> Do not send S3/DynamoDB through it when a gateway endpoint works. Do not put it in a private subnet. Do not attach a security group to it.</p>
+<p><strong>Security groups = stateful, ENI, allow-only. NACLs = stateless, subnet, allow and deny.</strong> Ephemeral-port bugs are NACL-only. “Deny this IP” is NACL (or WAF/Network Firewall when the stem is HTTP).</p>
+<p><strong>Gateway endpoints: S3 and DynamoDB, free, same Region.</strong> No gateway endpoint for SSM, STS, ECR, Secrets Manager, KMS, or “the internet.”</p>
+<p><strong>Flow Logs are not Wireshark.</strong> They show accept/reject metadata, not payloads. They omit IMDS, Amazon DNS, DHCP, and similar metadata-path traffic.</p>
+<p><strong>Multi-AZ is HA, not DR.</strong> Two AZs survive an AZ outage. Regional failure needs a second Region (or defined on-premises fallback) plus failover DNS or similar.</p>
+
+<div class="exam-tip"><strong class="label">Exam habit</strong> Draw the route table before the security group. Satisfy HA first, then replace NAT-to-S3 with a gateway endpoint so you get both resilience and cost.</div>
+
+<div class="exam-skip"><strong class="label">Light touch on the exam</strong> Every Transit Gateway attachment type, IPv6-only VPC deep dives, Network Firewall rule-group syntax. Know peering vs TGW and SG vs NACL cold.</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html" target="_blank" rel="noopener">What is Amazon VPC?</a></li>
+  <li><a href="https://docs.aws.amazon.com/vpc/latest/userguide/configure-subnets.html" target="_blank" rel="noopener">Subnets</a></li>
+  <li><a href="https://docs.aws.amazon.com/vpc/latest/userguide/subnet-sizing.html" target="_blank" rel="noopener">Subnet CIDR reservations (five reserved addresses)</a></li>
+  <li><a href="https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat-gateway.html" target="_blank" rel="noopener">NAT gateways</a></li>
+  <li><a href="https://docs.aws.amazon.com/vpc/latest/userguide/vpc-security-groups.html" target="_blank" rel="noopener">Security groups</a></li>
+  <li><a href="https://docs.aws.amazon.com/vpc/latest/userguide/vpc-network-acls.html" target="_blank" rel="noopener">Network ACLs</a></li>
+  <li><a href="https://docs.aws.amazon.com/vpc/latest/peering/what-is-vpc-peering.html" target="_blank" rel="noopener">VPC peering</a></li>
+  <li><a href="https://docs.aws.amazon.com/vpc/latest/privatelink/gateway-endpoints.html" target="_blank" rel="noopener">Gateway endpoints (S3 and DynamoDB)</a></li>
+  <li><a href="https://docs.aws.amazon.com/vpc/latest/privatelink/concepts.html" target="_blank" rel="noopener">Interface endpoints / PrivateLink</a></li>
+  <li><a href="https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs.html" target="_blank" rel="noopener">VPC Flow Logs</a></li>
+  <li><a href="https://docs.aws.amazon.com/vpc/latest/userguide/egress-only-internet-gateway.html" target="_blank" rel="noopener">Egress-only internet gateways</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../compare/networking.html">Networking picker</a>
+  <a href="../learn/networking-advanced.html">Hybrid networking and Transit Gateway</a>
+  <a href="../learn/s3.html">S3 and gateway endpoints</a>
+  <a href="../learn/ec2.html">EC2, ENIs, and instance profiles</a>
+  <a href="../learn/security.html">KMS, WAF, Shield</a>
+  <a href="../exam/domain-1-secure.html">Domain 1 · Secure</a>
+  <a href="../exam/domain-2-resilient.html">Domain 2 · Resilient</a>
+</div>

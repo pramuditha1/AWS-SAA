@@ -1,0 +1,145 @@
+<h1>Cost optimization — pay for what you need, commit when steady</h1>
+<div class="meta-row"><span class="pill must">Must-know</span><span class="pill domain">Domain 4 · Savings Plans, Spot, data transfer</span></div>
+<p class="lede">Domain 4 is less about clever math and more about matching workload shape to pricing. Steady 24×7 compute → commit (Savings Plans / RI). Spiky batch that can die → Spot. Wrong architecture (NAT, cross-AZ chatty apps, public egress) often costs more than the instance type.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>On-Demand is flexible and expensive at scale. Leaving oversized instances, idle load balancers, and chatty cross-AZ traffic on forever burns budget without helping users.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p>EC2/Fargate/Lambda purchasing options, S3 storage classes and lifecycle, data-transfer awareness, and tooling: Cost Explorer, Budgets, Cost Anomaly Detection, Compute Optimizer, Trusted Advisor.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>Pricing is <strong>Regional</strong> (and sometimes AZ-sensitive for data transfer). Consolidated billing rolls cost to the Organizations payer account.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>On-Demand · Savings Plans · Reserved Instances · Spot · S3 tiers · data transfer / NAT · right-sizing tools. Those cover most Domain 4 stems.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge (beginner foundations)</h2>
+
+<div class="core-box">
+  <h3>Match commitment to interruptibility</h3>
+  <p>If the work <strong>must</strong> keep running and looks steady, buy a commitment. If the work can checkpoint and retry, use <strong>Spot</strong> (up to ~90% off, reclaimed with short notice). If you are still experimenting, stay On-Demand.</p>
+</div>
+
+<div class="table-wrap"><table>
+  <thead><tr><th>Model</th><th>In plain English</th><th>Typical stem</th></tr></thead>
+  <tbody>
+    <tr><td>On-Demand</td><td>Pay by the second/hour, no commitment</td><td>Unpredictable, short, or new</td></tr>
+    <tr><td>Compute Savings Plans</td><td>$/hour commit; flexible across instance family, Region, Fargate, Lambda</td><td>Steady spend, need flexibility</td></tr>
+    <tr><td>EC2 Instance Savings Plans / Standard RI</td><td>Deeper discount, less flexible</td><td>Known family in a Region</td></tr>
+    <tr><td>Convertible RI</td><td>RI you can exchange for other families</td><td>Legacy RI stems</td></tr>
+    <tr><td>Spot</td><td>Cheap, can be interrupted</td><td>Batch, CI, fault-tolerant scale-out</td></tr>
+    <tr><td>Dedicated Host</td><td>Whole physical server</td><td>Per-socket licensing / compliance</td></tr>
+  </tbody>
+</table></div>
+
+<p><strong>Capacity Reservations</strong> guarantee EC2 capacity in an AZ — they do not discount by themselves. Pair with Savings Plans if you want both capacity and rate discount.</p>
+<p><strong>S3 cost levers:</strong> lifecycle to Infrequent Access / Glacier classes, Intelligent-Tiering when access is unknown, expire incomplete multipart uploads.</p>
+
+<h2>Where money quietly leaks</h2>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  q{{What is the cost driver}}
+  q -->|steady_compute| sp[Savings_Plans_or_RI]
+  q -->|batch_can_die| spot[Spot]
+  q -->|idle_oversized| rightsize[Compute_Optimizer]
+  q -->|egress_NAT| arch[Fix_architecture]
+  q -->|cold_objects| s3life[S3_lifecycle]
+  </div>
+  <p class="caption">Decision view aligned with Domain 4 habits. Pricing models: <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-purchasing-options.html" target="_blank" rel="noopener">EC2 purchasing options</a> and <a href="https://docs.aws.amazon.com/savingsplans/latest/userguide/what-is-savings-plans.html" target="_blank" rel="noopener">What are Savings Plans?</a>.</p>
+</div>
+
+<p>Watch <strong>data transfer</strong>: internet egress, NAT Gateway processing/bytes, cross-AZ traffic for chatty tiers, and cross-Region replication. Sometimes a gateway VPC endpoint for S3 beats NAT egress.</p>
+
+<div class="exam-tip"><strong class="label">Remember</strong> Savings Plans do not reserve capacity. Spot is wrong for stateful single-node databases. “Cheapest S3 for rarely opened backups” → Glacier classes via lifecycle, not all-Standard forever.</div>
+
+<h2>Use case 1 — steady web fleet</h2>
+<p><strong>Need:</strong> ASG runs all year; instance sizes may change.</p>
+<p><strong>Design:</strong> Compute Savings Plans covering the baseline; On-Demand/Spot for burst if the app allows.</p>
+
+<h2>Use case 2 — nightly analytics</h2>
+<p><strong>Need:</strong> EMR/Spark jobs that can retry; cost sensitive.</p>
+<p><strong>Design:</strong> Spot for task nodes (diversified pools); On-Demand or reserved for critical master/core if required.</p>
+
+<h2>Use case 3 — budget guardrails</h2>
+<p><strong>Need:</strong> Alert before the bill surprises finance.</p>
+<p><strong>Design:</strong> AWS Budgets + Cost Anomaly Detection; tag allocation; Cost Explorer reports. Optional SCP to block expensive unused Regions.</p>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Stem language</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Commit $/hour, keep flexibility across compute</td><td>Compute Savings Plans</td><td>Only Spot for a steady database</td></tr>
+    <tr><td>Fault-tolerant batch, max discount</td><td>Spot</td><td>RI for interruptible scrapers only</td></tr>
+    <tr><td>Need capacity guarantee in an AZ</td><td>Capacity Reservation (+ SP for rate)</td><td>Savings Plans alone for capacity</td></tr>
+    <tr><td>Per-socket BYOL</td><td>Dedicated Host</td><td>Shared tenancy Spot</td></tr>
+    <tr><td>Unused oversized instances</td><td>Compute Optimizer / right-size</td><td>Buy more RIs blindly</td></tr>
+    <tr><td>Private subnet S3 heavy egress via NAT</td><td>S3 gateway endpoint</td><td>Bigger NAT as first answer</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — flexible commitment</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Steady compute spend across EC2, Fargate, and Lambda. Instance families change quarterly. Maximize discount with flexibility.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Standard RI locked to one family forever.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Compute Savings Plans.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> All Spot for the payment database.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Dedicated Hosts for every microservice.</div>
+</div>
+
+<h2>Case study 2 — Spot fitness</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Image-processing workers pull jobs from SQS, are stateless, and can retry. Cut cost aggressively.</p>
+  <div class="opt win"><strong class="tag">A — correct</strong> Spot (or mixed instances ASG) workers + SQS.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Spot for a single-node RDS primary.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Only On-Demand with no SQS buffer.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Snowball Edge as compute.</div>
+</div>
+
+<h2>Case study 3 — S3 lifecycle</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Compliance keeps objects seven years; after 90 days almost never read. Minimize storage cost.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Keep everything in S3 Standard.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Lifecycle to IA/Glacier Deep Archive (per access pattern) with retrieval time that still meets RTO.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Delete at day 91 when retention is seven years.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Store only on instance store disks.</div>
+</div>
+
+<h2>Tricky points (still explained simply)</h2>
+<p><strong>RI Marketplace and Convertible quirks</strong> still appear; prefer Savings Plans language on modern stems when flexibility is stressed.</p>
+<p><strong>Spot interruption</strong> is normal — design for it (SQS, checkpoint, diversified pools).</p>
+<p><strong>Egress is architecture.</strong> CloudFront can reduce origin egress cost for public content; endpoints can reduce NAT cost for S3.</p>
+<p><strong>Trusted Advisor / Cost Optimizer</strong> suggest; they do not auto-buy commitments without you.</p>
+
+<div class="exam-skip"><strong class="label">Light touch on the exam</strong> Exact discount percentages, CUR column encyclopedias, Savings Plans recommendation math.</div>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/savingsplans/latest/userguide/what-is-savings-plans.html" target="_blank" rel="noopener">What are Savings Plans?</a></li>
+  <li><a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-purchasing-options.html" target="_blank" rel="noopener">EC2 purchasing options</a></li>
+  <li><a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-spot-instances.html" target="_blank" rel="noopener">Spot Instances</a></li>
+  <li><a href="https://docs.aws.amazon.com/cost-management/latest/userguide/what-is-costmanagement.html" target="_blank" rel="noopener">AWS Cost Management</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/storage-class-intro.html" target="_blank" rel="noopener">S3 storage classes</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/ec2.html">EC2 purchasing deep dive</a>
+  <a href="../learn/s3.html">S3 classes and lifecycle</a>
+  <a href="../learn/governance.html">Organizations consolidated billing</a>
+  <a href="../exam/domain-4-cost.html">Domain 4 overview</a>
+</div>

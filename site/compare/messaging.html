@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Messaging picker · SAA-C03 Study</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Sinhala:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/docs.css">
+</head>
+<body data-root="../">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="topbar">
+    <button class="menu-btn" aria-label="Open menu">☰</button>
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">S</span>
+      SAA-C03 <span class="sub">study site</span>
+    </a>
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input id="site-search" type="search" placeholder="Search services…" autocomplete="off">
+      <div id="search-results" hidden></div>
+    </div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar"><div class="nav-group"><h2>Exam</h2><a href="../index.html">Service catalog</a><a href="../exam/overview.html">Exam overview</a><a href="../exam/domain-1-secure.html">Domain 1 · Secure 30%</a><a href="../exam/domain-2-resilient.html">Domain 2 · Resilient 26%</a><a href="../exam/domain-3-performance.html">Domain 3 · Performance 24%</a><a href="../exam/domain-4-cost.html">Domain 4 · Cost 20%</a><a href="../exam/out-of-scope.html">Out of scope</a></div>
+<div class="nav-group"><h2>Learn</h2><a href="../learn/foundations.html">Foundations</a><a href="../learn/well-architected.html">Well-Architected</a><a href="../learn/iam.html">IAM</a><a href="../learn/identity-federation.html">Cognito &amp; federation</a><a href="../learn/security.html">KMS, WAF, Shield</a><a href="../learn/specialty-security.html">Security extras</a><a href="../learn/s3.html">S3</a><a href="../learn/storage.html">EBS, EFS, FSx</a><a href="../learn/ec2.html">EC2</a><a href="../learn/elb-asg.html">Auto Scaling &amp; ELB</a><a href="../learn/vpc.html">VPC</a><a href="../learn/networking-advanced.html">Hybrid networking</a><a href="../learn/route53.html">Route 53</a><a href="../learn/cloudfront.html">CloudFront &amp; GA</a><a href="../learn/databases.html">RDS, Aurora, ElastiCache</a><a href="../learn/dynamodb.html">DynamoDB &amp; API Gateway</a><a href="../learn/specialty-databases.html">DocumentDB, Neptune</a><a href="../learn/messaging.html">SQS, SNS, Kinesis</a><a href="../learn/lambda.html">Lambda &amp; Step Functions</a><a href="../learn/integration-extras.html">AppSync, MSK, AppFlow</a><a href="../learn/monitoring.html">CloudWatch &amp; CloudTrail</a><a href="../learn/containers.html">ECS, EKS, Fargate</a><a href="../learn/migration.html">Migration &amp; DR</a><a href="../learn/analytics.html">Analytics</a><a href="../learn/governance.html">Organizations &amp; Config</a><a href="../learn/cost.html">Cost optimization</a><a href="../learn/hybrid-edge.html">Outposts &amp; Wavelength</a><a href="../learn/ml.html">Machine learning</a></div>
+<div class="nav-group"><h2>Compare</h2><a href="../compare/storage.html">Storage picker</a><a href="../compare/databases.html">Database picker</a><a class="active" href="../compare/messaging.html">Messaging picker</a><a href="../compare/compute.html">Compute picker</a><a href="../compare/networking.html">Networking picker</a><a href="../compare/dr.html">DR picker</a></div>
+<div class="nav-group"><h2>Sinhala</h2><a href="../sinhala/index.html">Sinhala notes</a></div></aside>
+    <main id="main">
+      <div class="crumb">Compare / Messaging</div>
+      <h1>Messaging picker — queue, bus, stream, or workflow</h1>
+<div class="meta-row"><span class="pill must">High-score page</span><span class="pill domain">Domain 2.3 · decoupling · Domain 3 event-driven</span></div>
+<p class="lede">Messaging questions look alike until you name the <em>shape</em> of the conversation. A queue buffers work for competing workers. A topic or bus fans one event out to many targets. A stream is a replayable log. A state machine orchestrates steps with retries. Pick the shape first. The product name follows.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>If a web server calls a worker directly, a spike or a crashed worker breaks the user. A queue or bus absorbs the spike, lets workers die and retry, and lets new subscribers appear without rewriting the producer.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p>This picker chooses among <strong>SQS</strong> (queue), <strong>SNS</strong> (topic), <strong>EventBridge</strong> (bus with rules), <strong>Kinesis Data Streams</strong> / <strong>MSK</strong> (replayable log), <strong>Firehose</strong> (delivery into S3/analytics), <strong>Step Functions</strong> (orchestrator), and <strong>Amazon MQ</strong> (keep JMS / ActiveMQ / RabbitMQ).</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>These services are <strong>Regional</strong> and Multi-AZ under the hood. You call Regional endpoints. Cross-account and SaaS partners often meet you on an <strong>EventBridge</strong> bus. MQ brokers sit in your VPC.</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>Queue vs fan-out vs stream · SQS Standard vs FIFO · SNS + SQS durable fan-out · EventBridge content rules · Kinesis retention / replay · Firehose destinations · Step Functions · Amazon MQ for legacy brokers. Those ideas cover almost every messaging stem.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge — how to walk a stem</h2>
+
+<div class="core-box">
+  <h3>Ask three shape questions</h3>
+  <p><strong>1.</strong> Do many independent systems each need a copy of the same event (and maybe at different speeds)? That is fan-out — not one shared queue. <strong>2.</strong> Must a later app replay last week’s data? Queues delete after success; streams retain. <strong>3.</strong> Is this a multi-step business workflow with branches and retries? That is Step Functions, not nested Lambdas.</p>
+</div>
+
+<p><strong>Competing consumers vs fan-out.</strong> Three workers on <em>one</em> SQS queue fight over messages — each message goes to one worker. That is not fan-out. Fan-out is SNS or EventBridge. If a slow fleet must not lose work, subscribe an <strong>SQS queue</strong> to the topic/bus (SNS → SQS → workers), not only a raw HTTP endpoint.</p>
+
+<p><strong>Replay.</strong> After SQS delete, the message is gone. Kinesis Data Streams keeps a retention window (default 24 hours, up to 365 days) so a new analytics app can rewind. Clickstream + multiple independent readers → Kinesis (or MSK if they must keep the Kafka API).</p>
+
+<p><strong>Order and duplicates.</strong> SQS Standard = at-least-once, best-effort order — write idempotent workers. SQS FIFO = order per message group ID + exactly-once processing inside the dedup window. Visibility timeout hides in-flight work; after maxReceiveCount failures, send poison messages to a <strong>dead-letter queue (DLQ)</strong>.</p>
+
+<h2>Decision diagram</h2>
+<p>AWS documents each product for a different conversation shape. Use this decision view before you memorize feature lists.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  q{{What must happen to the event}}
+  q -->|one_backlog_competing_workers| sqs[SQS]
+  q -->|one_event_many_targets| sns[SNS]
+  q -->|route_on_content_SaaS_cron| eb[EventBridge]
+  q -->|replay_many_independent_readers| kin[Kinesis_or_MSK]
+  q -->|load_into_S3_Redshift_no_code| fh[Firehose]
+  q -->|orchestrate_retries_branches| sfn[Step_Functions]
+  q -->|keep_JMS_ActiveMQ_Rabbit| mq[Amazon_MQ]
+  </div>
+  <p class="caption">Decision view for SAA. Product overviews: <a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/welcome.html" target="_blank" rel="noopener">SQS</a>, <a href="https://docs.aws.amazon.com/sns/latest/dg/welcome.html" target="_blank" rel="noopener">SNS</a>, <a href="https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-what-is.html" target="_blank" rel="noopener">EventBridge</a>, <a href="https://docs.aws.amazon.com/streams/latest/dev/introduction.html" target="_blank" rel="noopener">Kinesis Data Streams</a>.</p>
+</div>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>If the stem says</th><th>Pick</th><th>Not / watch-out</th></tr></thead>
+  <tbody>
+    <tr><td>Decouple producer from workers, buffer spikes</td><td>SQS</td><td>Standard = at-least-once. FIFO = order + dedup</td></tr>
+    <tr><td>Same event to Lambda + email + a durable worker fleet</td><td>SNS fan-out; SQS subscription for the fleet</td><td>One SQS queue for all three (competing consumers)</td></tr>
+    <tr><td>Clickstream / IoT, many apps read the same records, replay</td><td>Kinesis Data Streams (MSK if Kafka required)</td><td>SQS (no easy week-long replay)</td></tr>
+    <tr><td>Land a stream in S3 / Redshift / OpenSearch with least code</td><td>Amazon Data Firehose</td><td>Near real-time, not a job queue</td></tr>
+    <tr><td>Route on JSON fields, AWS events, partner SaaS, cron</td><td>EventBridge</td><td>Not a large buffer — put SQS behind it if workers lag</td></tr>
+    <tr><td>Keep ActiveMQ / RabbitMQ / JMS</td><td>Amazon MQ</td><td>Not the default for new cloud-native apps</td></tr>
+    <tr><td>Long business workflow, retries, parallel branches</td><td>Step Functions Standard</td><td>Deep Lambda chaining</td></tr>
+  </tbody>
+</table></div>
+
+<p><strong>The durable fan-out you should be able to draw.</strong> Producer → SNS topic → Lambda / email immediately, and → SQS → EC2/ECS workers. A 3 a.m. worker outage does not drop orders. FIFO SNS + FIFO SQS when order is required; you cannot subscribe a Standard queue to a FIFO topic.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  prod[Producer] --> topic[SNS_topic]
+  topic --> lam[Lambda_fraud]
+  topic --> email[Email]
+  topic --> q[SQS_orders]
+  q --> workers[EC2_or_ECS_workers]
+  workers --> dlq[Dead_letter_queue]
+  </div>
+  <p class="caption">Common fan-out pattern from <a href="https://docs.aws.amazon.com/sns/latest/dg/sns-sqs-as-subscriber.html" target="_blank" rel="noopener">Fanout to SQS queues</a>. DLQ: <a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html" target="_blank" rel="noopener">Dead-letter queues</a>.</p>
+</div>
+
+<h2>Case study 1 — fan-out that cannot lose work</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">Order events must fan out to a fraud Lambda, an email notification, and a durable worker fleet that can lag during peaks. No message may be lost if a worker is down.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> One SQS queue consumed by all three. Competing consumers: email or Lambda would steal messages from the workers.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> SNS topic with subscriptions to Lambda, email, and an SQS queue for the workers. SQS is the durable buffer.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> EventBridge to Lambda and email only, no queue. Routing is fine, but a down worker fleet needs a buffer (you could add an SQS target — without it this fails the stem).</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Kinesis Data Streams. Valid for replay + many shard readers. The stem did not ask for that. Wrong default.</div>
+  <p>Memorize: fan-out + durable slow consumer = SNS (or EventBridge) plus SQS.</p>
+</div>
+
+<h2>Case study 2 — replayable clickstream</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A website emits millions of click events per hour. Today a fraud app consumes them. Next quarter a data-science team must replay the last seven days into a new model without asking the website to emit twice. Ordering per user is desirable.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> SQS Standard. After the fraud app deletes a message it is gone. A new consumer cannot replay last week.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Kinesis Data Streams with retention ≥ 7 days. Independent consumers read the same shards. Partition key = user id for per-user order.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> SNS only. Push delivery, no week-long retention log for replay.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Amazon MQ. You would run a broker to fake a stream.</div>
+  <p>Already on Kafka and cannot change → MSK. Only need to land clicks in S3 for Athena → Firehose can be enough, but Firehose is not a replay API for a second real-time app.</p>
+</div>
+
+<h2>Case study 3 — order must not jump the queue</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A payments processor must process events for a given account in order, with no duplicates even if the producer retries. Throughput per account is modest. Spikes are absorbed by a buffer. Workers are EC2.</p>
+  <div class="opt win"><strong class="tag">A — correct</strong> SQS FIFO with message group ID = account ID, plus the producer’s deduplication ID (or content-based dedup). Workers long-poll the FIFO queue.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> SQS Standard plus “workers sort in memory.” Standard is at-least-once and best-effort order.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Kinesis with a single shard for the whole system. Ordering works, but you invent a throughput ceiling; SQS FIFO matches “buffer + workers” with fewer moving parts.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> SNS Standard topic. No ordering, no competing-worker buffer.</div>
+  <p>Per-account order at modest rate is FIFO. Millions of globally ordered messages often points to Kinesis partition keys instead.</p>
+</div>
+
+<h2>Tricky points</h2>
+<p><strong>At-least-once → idempotent consumers.</strong> Visibility timeout too short → duplicate processing. Too long → slow recovery after a crash. DLQ for poison pills.</p>
+<p><strong>EventBridge vs SNS.</strong> SNS = topics you publish to. EventBridge = AWS service events, SaaS partners, content filters, archive/replay, Scheduler. Both can fan out. EventBridge wins on “when EC2 state changes,” “Salesforce events,” or “filter on a JSON field.”</p>
+<p><strong>Kinesis vs SQS vs Firehose.</strong> Workers pulling jobs → SQS. Many apps replaying a log → Kinesis. Dump into S3/Redshift with no app → Firehose. Never use Firehose as a job queue.</p>
+<p><strong>Step Functions vs SQS.</strong> SQS is a buffer. Step Functions is a workflow (“wait for human, call two APIs in parallel, retry this one”).</p>
+<p><strong>Amazon MQ is compatibility.</strong> New designs use SQS/SNS/EventBridge. MQ appears when the stem forbids changing the JMS client.</p>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/welcome.html" target="_blank" rel="noopener">Amazon SQS</a></li>
+  <li><a href="https://docs.aws.amazon.com/sns/latest/dg/welcome.html" target="_blank" rel="noopener">Amazon SNS</a></li>
+  <li><a href="https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-what-is.html" target="_blank" rel="noopener">Amazon EventBridge</a></li>
+  <li><a href="https://docs.aws.amazon.com/streams/latest/dev/introduction.html" target="_blank" rel="noopener">Amazon Kinesis Data Streams</a></li>
+  <li><a href="https://docs.aws.amazon.com/step-functions/latest/dg/welcome.html" target="_blank" rel="noopener">AWS Step Functions</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/messaging.html">SQS, SNS, Kinesis chapter</a>
+  <a href="../learn/lambda.html">Lambda and Step Functions</a>
+  <a href="../learn/integration-extras.html">MSK and AppSync</a>
+</div>
+
+    </main>
+  </div>
+  <script src="../assets/js/catalog-data.js"></script>
+  <script src="../assets/js/nav.js?v=2"></script>
+  <script src="../assets/js/search.js"></script>
+  <script src="../assets/js/catalog.js"></script>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "dark",
+      securityLevel: "loose",
+      themeVariables: {
+        darkMode: true,
+        background: "#0a101c",
+        primaryColor: "#243656",
+        primaryTextColor: "#e8eef8",
+        primaryBorderColor: "#ff9900",
+        lineColor: "#9aabc4",
+        secondaryColor: "#1a2438",
+        tertiaryColor: "#121a2b",
+        nodeTextColor: "#e8eef8"
+      }
+    });
+  </script>
+</body>
+</html>
