@@ -108,9 +108,42 @@ Publisher → SNS Topic → Subscribers (multiple)
 | **Message Filtering** | JSON policy to filter which messages reach which subscriber |
 | **Fan-out** | One message to many SQS queues via topic |
 | **FIFO Topics** | Ordered delivery (pairs with SQS FIFO) |
-| **Message Archiving** | Store messages via Kinesis Data Firehose |
+| **Message Archiving** | Standard: archive via Kinesis Data Firehose. FIFO: native archive + replay |
 | **Encryption** | KMS encryption at rest |
 | **Access Policies** | Resource-based policy for cross-account |
+| **Subscription DLQ** | SQS queue per subscription for messages SNS gives up on (redrive policy) |
+
+### SNS Scaling & Delivery (where messages actually get lost)
+- **Fully managed, no servers.** SNS scales by itself. "Provision more SNS servers" is always a wrong answer.
+- **Publish quota**: soft, per account per Region (us-east-1: 30,000 msg/s; most others lower). If you hit it, the **publisher** gets a throttling error on `Publish`. It's not a silent loss.
+- **Delivery to Lambda = asynchronous invoke.** SNS hands the event to Lambda and moves on. The **subscriber is usually the bottleneck**, not SNS.
+- **Delivery retries** (delivery policy):
+
+| Endpoint type | Examples | Retries |
+|---------------|----------|---------|
+| AWS-managed | Lambda, SQS, Firehose | 100,015 attempts over 23 days |
+| Customer-managed | HTTP/S, email, SMS, mobile push | 50 attempts over 6 hours (only HTTP/S policy is customizable) |
+
+- When retries run out → message **discarded** unless the subscription has a **DLQ** (SQS).
+
+### SNS → Lambda at Scale (classic exam trap)
+```
+Publisher → SNS Topic → Lambda (async invoke)
+                           │
+                           ├── Needs concurrency = RPS × avg duration (s)
+                           │     100 rps × 0.5 s =    50  ✅
+                           │   5,000 rps × 0.5 s = 2,500  ❌ > 1,000 default
+                           │
+                           └── Over the limit → 429 throttle → Lambda async queue
+                               retries up to 6 h → then DROPPED (no DLQ/destination)
+                               → "notifications not delivered"
+```
+- **Fix:** raise the Lambda **account concurrency quota** (Service Quotas / AWS Support). Default is 1,000 per Region.
+- **Don't lose events:** add a Lambda **on-failure destination** or DLQ. Or put **SQS between SNS and Lambda** (SNS → SQS → Lambda) so the queue buffers the spike. SQS doesn't add throughput; it only stops messages from being lost.
+- **Protect the function from noisy neighbours:** set **reserved concurrency** on it.
+
+> **Exam Tip**: "SNS + Lambda, works at low traffic, messages lost at peak" = **Lambda concurrency quota**, not SNS. SNS is built to scale. Lambda's 1,000/Region default is the first wall you hit.
+> **Discriminator**: if SNS itself were throttling, the *publisher* would get errors. "Published fine, but users never receive it" points at the **subscriber side** (Lambda).
 
 ### SNS + SQS Fan-Out Pattern
 ```
@@ -127,7 +160,7 @@ Benefits: Fully decoupled, each consumer processes independently
 |---------|-----|-----|
 | Model | Pub/Sub (push) | Queue (pull) |
 | Consumers | Multiple subscribers | Single consumer group |
-| Persistence | No (delivered or lost) | Yes (messages stored) |
+| Persistence | No queue. Retries, then dropped unless subscription DLQ | Yes (messages stored, 1 min–14 days) |
 | Use Case | Fan-out, notifications | Decouple, buffer, process |
 
 > **Exam Tip**: "Send one event to multiple services" = SNS (fan-out). "Decouple one producer and one consumer" = SQS.
@@ -253,5 +286,6 @@ Shard capacity:
 | FIFO ordering + exactly-once | SQS FIFO |
 | Migrate from ActiveMQ/RabbitMQ | Amazon MQ |
 | Notifications (email, SMS) | SNS |
+| SNS → Lambda drops messages at peak | Raise Lambda concurrency quota (+ DLQ / SNS → SQS → Lambda) |
 | Event-driven architecture | EventBridge |
 | Buffer during traffic spikes | SQS |

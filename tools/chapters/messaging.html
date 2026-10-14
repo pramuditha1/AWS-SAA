@@ -84,6 +84,25 @@ flowchart LR
 <p>Publish to a <strong>topic</strong>. SNS pushes to each subscription: SQS, Lambda, HTTPS, email, SMS, mobile push, Firehose. That is <strong>fan-out</strong>: order-placed becomes “email customer,” “update search,” and “notify billing” without the order service knowing those three.</p>
 <p>The durable exam pattern is <strong>SNS → SQS → worker</strong> (each team gets its own queue and DLQ), not SNS → one EC2 HTTPS endpoint. <strong>Filter policies</strong> let a subscriber ignore messages it does not care about. FIFO topics pair only with FIFO queues when order + fan-out both appear.</p>
 
+<h3>Where SNS messages actually get lost</h3>
+<p>SNS has no servers for you to add. It scales by itself, so on the exam "provision more SNS servers" is always wrong. It does have a <strong>publish quota</strong> per account per Region, and it is a soft quota. If you hit it, the <em>publisher</em> gets a throttling error back from <code>Publish</code>, so you would see errors where the message is sent.</p>
+<p>SNS calls a Lambda subscriber with an <strong>asynchronous invoke</strong>: it hands over the event and moves on. Lambda then needs a free <strong>concurrent execution</strong>, which is one running copy of the function. The account default is <strong>1,000 per Region</strong>. Above that, Lambda throttles. It keeps throttled async events in its own queue and retries them for up to 6 hours. After that it <strong>discards</strong> them, unless you configured an on-failure destination or DLQ.</p>
+<p>When SNS cannot deliver to a subscriber at all, it retries using a <strong>delivery policy</strong>. For AWS endpoints (Lambda, SQS, Firehose) that is about 100,000 attempts over 23 days. For HTTP/S, email, and SMS it is 50 attempts over 6 hours. After that SNS drops the message, unless the subscription has its own <strong>SQS dead-letter queue</strong>.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  pub[Publisher] -->|Publish_ok| topic[SNS_topic]
+  topic -->|Async_invoke| lam{{Lambda_concurrency_free}}
+  lam -->|Yes| fn[Function_runs]
+  lam -->|No_429| q[Lambda_async_queue_retry_up_to_6h]
+  q -->|Still_throttled| drop[Dropped_unless_DLQ_or_destination]
+  </div>
+  <p class="caption">Follows <a href="https://docs.aws.amazon.com/lambda/latest/dg/invocation-async-error-handling.html" target="_blank" rel="noopener">Lambda async error handling</a>, <a href="https://docs.aws.amazon.com/lambda/latest/dg/lambda-concurrency.html" target="_blank" rel="noopener">Lambda concurrency</a>, and <a href="https://docs.aws.amazon.com/sns/latest/dg/sns-message-delivery-retries.html" target="_blank" rel="noopener">SNS delivery retries</a>.</p>
+</div>
+
+<p><strong>Concurrency math:</strong> concurrency = requests per second × average duration in seconds. At 100 rps × 0.5 s you need 50, which is fine. At 5,000 rps × 0.5 s you need 2,500, over the 1,000 default. The fix is to raise the Lambda account concurrency quota through Service Quotas or AWS Support. To make sure nothing is lost during spikes, also add a DLQ or on-failure destination, or put SQS between SNS and Lambda.</p>
+
 <h2>EventBridge — a smart event bus</h2>
 <p>EventBridge routes events with <strong>content-based rules</strong> (match on source, detail-type, fields inside JSON <code>detail</code>). Sources include AWS services (default bus), your apps (custom bus), and <strong>SaaS partner</strong> integrations. Targets include Lambda, SQS, SNS, Step Functions, Kinesis, API destinations, and more. Archive/replay and Scheduler (cron/rate) sit beside the bus.</p>
 <p><strong>SNS vs EventBridge:</strong> both can fan out. EventBridge wins for SaaS partners, rich payload matching, archive/replay, and “corporate event bus.” SNS wins for simple pub/sub to SQS/Lambda/SMS/email.</p>
@@ -158,6 +177,7 @@ flowchart LR
     <tr><td>Least ops into S3/Redshift/OpenSearch</td><td>Firehose</td><td>Homegrown Streams batcher</td></tr>
     <tr><td>Existing JMS / ActiveMQ / RabbitMQ</td><td>Amazon MQ</td><td>Forced rewrite to SQS this sprint</td></tr>
     <tr><td>Payload &gt; 256 KB, still a queue</td><td>SQS Extended Client + S3</td><td>“Raise SQS to 10 MB”</td></tr>
+    <tr><td>SNS → Lambda works off-peak, notifications lost at peak</td><td>Raise Lambda account concurrency quota</td><td>“SNS hit a limit”; “add SNS/Lambda servers”</td></tr>
   </tbody>
 </table></div>
 
@@ -194,11 +214,23 @@ flowchart LR
   <p>B uses MQ and EventBridge for the reasons each exists. A ignores the timeline and the partner integration.</p>
 </div>
 
+<h2>Case study 4 — SNS → Lambda drops messages at peak</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A website sends notifications through SNS to a Lambda function that delivers them to users. Off-season load is ~100 requests/second and works fine. At peak season it is ~5,000 requests/second, and many notifications never reach users. What is the BEST fix?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Provision more servers running SNS.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> SNS deliveries to Lambda have crossed the Lambda account concurrency quota. Ask AWS Support to raise it.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> SNS hit a scalability limit. Ask AWS Support to raise the SNS limit.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Provision more servers running Lambda.</div>
+  <p>A and D fail because both services are serverless, so there are no servers to add. C is the trap. SNS is built to absorb large publish rates. If SNS were throttling, the publisher would get errors on <code>Publish</code>. The stem says messages are published but users never get them, so the problem is on the subscriber side. 50× the traffic means 50× the concurrent Lambda executions, and the default 1,000 per Region runs out. Throttled async events are retried, then dropped.</p>
+</div>
+
 <h2>Tricky points (still explained simply)</h2>
 <p><strong>Visibility timeout ≠ delay queue.</strong> Hide time must cover processing or another worker grabs the same message. Delay is “wait up to 15 minutes before first delivery.”</p>
 <p><strong>One queue is not fan-out.</strong> Competing consumers share work. Copies for every team need SNS, EventBridge, or a stream.</p>
 <p><strong>Standard SQS duplicates are normal.</strong> Fix with idempotency, not FIFO, unless the stem asked for order and exactly-once.</p>
 <p><strong>256 KB</strong> for SQS/SNS bodies on the exam’s memory — use S3 pointers or choose a stream if you needed a stream anyway.</p>
+<p><strong>"SNS hit a limit" is usually the trap.</strong> When SNS feeds Lambda and messages vanish under load, blame Lambda concurrency (1,000/Region default). Serverless services never take "add servers" as an answer.</p>
 <p><strong>Firehose is near-real-time.</strong> Sub-second Lambda processing of every record → Streams.</p>
 <p><strong>MQ ≠ “SQS with JMS paint.”</strong> Different HA, billing, and protocols. First migration step can still be MQ.</p>
 
@@ -211,6 +243,9 @@ flowchart LR
   <li><a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html" target="_blank" rel="noopener">Visibility timeout</a></li>
   <li><a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-s3-messages.html" target="_blank" rel="noopener">Large messages with Extended Client</a></li>
   <li><a href="https://docs.aws.amazon.com/sns/latest/dg/welcome.html" target="_blank" rel="noopener">Amazon SNS</a></li>
+  <li><a href="https://docs.aws.amazon.com/sns/latest/dg/sns-message-delivery-retries.html" target="_blank" rel="noopener">SNS delivery retries</a></li>
+  <li><a href="https://docs.aws.amazon.com/sns/latest/dg/sns-dead-letter-queues.html" target="_blank" rel="noopener">SNS dead-letter queues</a></li>
+  <li><a href="https://docs.aws.amazon.com/general/latest/gr/sns.html" target="_blank" rel="noopener">SNS quotas</a></li>
   <li><a href="https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-what-is.html" target="_blank" rel="noopener">Amazon EventBridge</a></li>
   <li><a href="https://docs.aws.amazon.com/streams/latest/dev/introduction.html" target="_blank" rel="noopener">Kinesis Data Streams</a></li>
   <li><a href="https://docs.aws.amazon.com/firehose/latest/dev/what-is-this-service.html" target="_blank" rel="noopener">Amazon Data Firehose</a></li>

@@ -103,6 +103,11 @@ flowchart LR
   <p class="caption">Guidance aligned with <a href="https://docs.aws.amazon.com/lambda/latest/dg/configuration-vpc.html" target="_blank" rel="noopener">Giving Lambda functions access to resources in an Amazon VPC</a>.</p>
 </div>
 
+<h2>How much concurrency do you need?</h2>
+<p><strong>Concurrency</strong> is how many copies of your function are running at the same moment. AWS gives a simple formula: <strong>concurrency = requests per second × average duration in seconds</strong>. For example, 100 rps × 0.5 s needs 50, but 5,000 rps × 0.5 s needs 2,500.</p>
+<p>The account default is <strong>1,000 concurrent executions per Region</strong>, shared by every function. Above that, Lambda throttles (429). Synchronous callers see the error. Asynchronous sources (S3, SNS, EventBridge) are retried by Lambda for up to 6 hours and then <strong>dropped</strong>, unless you set an on-failure destination or DLQ. The fix for steady peak load is a <strong>quota increase</strong> through Service Quotas or AWS Support. Adding servers is never an option because Lambda has none to add. Lambda also caps requests per second at 10 × concurrency, which matters for very short functions.</p>
+<p class="caption">Source: <a href="https://docs.aws.amazon.com/lambda/latest/dg/lambda-concurrency.html" target="_blank" rel="noopener">Understanding Lambda function scaling</a> (includes the 5,000 rps × 0.2 s = 1,000 worked example).</p>
+
 <h2>Reserved vs provisioned concurrency</h2>
 <div class="table-wrap"><table>
   <thead><tr><th></th><th>Reserved</th><th>Provisioned</th></tr></thead>

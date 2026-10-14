@@ -22,7 +22,7 @@
 | **Deployment package** | 50 MB (zip), 250 MB (unzipped) |
 | **Container image** | Up to 10 GB |
 | **Environment variables** | 4 KB total |
-| **Concurrency** | 1000 per region (soft limit, can increase) |
+| **Concurrency** | 1000 per region (soft limit, raise via Service Quotas / Support) |
 | **Ephemeral storage (/tmp)** | 512 MB - 10,240 MB |
 | **Layers** | Up to 5 per function |
 
@@ -42,7 +42,7 @@ Event Source → Lambda Function → Response/Side Effects
 | Type | Behavior | Retry | Use Case |
 |------|----------|-------|----------|
 | **Synchronous** | Caller waits for response | Caller retries | API Gateway, ALB, CloudFront |
-| **Asynchronous** | Event queued, caller doesn't wait | 2 retries (built-in) | S3, SNS, EventBridge, CloudWatch |
+| **Asynchronous** | Event queued, caller doesn't wait | Function error: 2 retries. Throttle: retried up to 6 h | S3, SNS, EventBridge, CloudWatch |
 | **Event Source Mapping** | Lambda polls source | Depends on source | SQS, Kinesis, DynamoDB Streams |
 
 ### Event Source Mapping (Polling)
@@ -80,10 +80,25 @@ Event Source → Lambda Function → Response/Side Effects
 | **Reserved** | Guaranteed concurrency for your function (taken from pool) |
 | **Provisioned** | Pre-initialized environments (no cold start) |
 
+**How much concurrency do I need?**
+```
+Concurrency = requests per second × average duration (seconds)
+
+  100 rps × 0.2 s =   20      ✅ fine
+5,000 rps × 0.2 s = 1,000     ⚠️ exactly the default account limit
+5,000 rps × 0.5 s = 2,500     ❌ throttled → raise the account quota
+```
+- Account default: **1,000 concurrent executions per Region**, shared by all functions
+- Also a hidden RPS cap = **10 × concurrency** (1,000 → 10,000 rps). Very short functions can hit this first.
+- Scaling rate: each function can add **1,000 environments every 10 seconds**
+
 **Throttling:**
 - Exceeds concurrency limit → throttled (429 error)
-- Async: Auto-retries. Sync: Returns 429 to caller.
+- Sync: Returns 429 to caller (caller must retry)
+- Async (S3, SNS, EventBridge): Lambda re-queues and retries for up to **6 hours**, then **discards** the event unless a DLQ / on-failure destination is set. This is how "SNS → Lambda" loses notifications at peak.
 - Set Reserved concurrency = 0 → effectively disables function
+
+> **Exam Tip**: "Lambda fine at low traffic, events lost / 429s at peak" = **account concurrency quota** → request an increase. "One function starves others" = reserved concurrency. "Cold starts" = provisioned concurrency.
 
 **Cold Start:**
 - First invocation: Initialize runtime + your code
