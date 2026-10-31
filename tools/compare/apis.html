@@ -1,0 +1,164 @@
+<h1>API picker — stateless or stateful, pull or push</h1>
+<div class="meta-row"><span class="pill must">High-score page</span><span class="pill domain">Domains 2 &amp; 3 · decoupling · real-time performance</span></div>
+<p class="lede">API questions get easier once you know what kind of conversation the app needs. Does the client ask and wait (REST, GraphQL)? Does an event source call someone else's URL (webhook)? Or does the server need to push to a connection that stays open (WebSockets, GraphQL subscriptions)? Answer that, and the AWS service follows.</p>
+
+<div class="fundamentals">
+  <h2>Start here — the W questions</h2>
+  <div class="w-grid">
+    <div class="w-card">
+      <h3>Why</h3>
+      <p>Some apps only need answers when they ask. Others need the server to speak first: a new chat message, a live score, a payment confirmation. Picking request/response when you needed push leads to wasteful polling. Picking open connections when you only needed request/response adds state you must manage.</p>
+    </div>
+    <div class="w-card">
+      <h3>What</h3>
+      <p><strong>Stateless</strong> APIs keep no memory of the client between requests: REST, webhooks, and GraphQL queries/mutations. <strong>Stateful</strong> APIs keep a connection open and remember the client: WebSockets and GraphQL subscriptions.</p>
+    </div>
+    <div class="w-card">
+      <h3>Where</h3>
+      <p>On AWS these are Regional managed services: <strong>API Gateway</strong> (REST, HTTP, WebSocket APIs), <strong>AppSync</strong> (GraphQL and real-time), <strong>EventBridge API destinations</strong> (outgoing webhooks), and <strong>Lambda function URLs</strong> (simple HTTPS endpoint for one function).</p>
+    </div>
+    <div class="w-card">
+      <h3>Which pieces matter</h3>
+      <p>Stateless vs stateful · pull vs push · who hosts the endpoint · REST vs HTTP API · WebSocket API routes and connection IDs · AppSync subscriptions · API destinations for webhooks · external session store for a stateless web tier.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Core knowledge — stateless vs stateful</h2>
+
+<div class="core-box">
+  <h3>One sentence each</h3>
+  <p><strong>Stateless:</strong> the server remembers nothing about you between requests, so every request carries its own token and context. Any server can answer it, which makes scaling easy. <strong>Stateful:</strong> the server keeps an open connection or session for you, so it can push data the moment something happens. The cost is that someone has to track every connection.</p>
+</div>
+
+<p>"Stateless" is about the <em>connection</em>, not the data. A stateless REST API still writes to DynamoDB. It just does not remember the caller between requests.</p>
+
+<div class="table-wrap"><table>
+  <thead><tr><th>Style</th><th>State</th><th>Connection</th><th>Direction</th><th>Who hosts the endpoint</th></tr></thead>
+  <tbody>
+    <tr><td><strong>REST API</strong></td><td>Stateless</td><td>Short-lived HTTP</td><td>Client pulls</td><td>Server; client calls it</td></tr>
+    <tr><td><strong>Webhooks</strong></td><td>Stateless</td><td>Short-lived HTTP POST</td><td>Server pushes an event</td><td><em>Receiver</em> hosts it; the event source calls it</td></tr>
+    <tr><td><strong>GraphQL queries / mutations</strong></td><td>Stateless</td><td>Short-lived HTTP, one endpoint</td><td>Client pulls exactly the fields it asks for</td><td>Server</td></tr>
+    <tr><td><strong>WebSockets</strong></td><td>Stateful</td><td>Persistent (HTTP upgrade → long-lived TCP)</td><td>Both ways</td><td>Server; client opens and keeps the line</td></tr>
+    <tr><td><strong>GraphQL subscriptions</strong></td><td>Stateful</td><td>Persistent WebSocket</td><td>Server pushes updates</td><td>Server; client subscribes to an event</td></tr>
+  </tbody>
+</table></div>
+
+<p><strong>Where GraphQL fits.</strong> GraphQL is a query language: the client asks one endpoint for exactly the fields it wants, so it doesn't over-fetch or make several REST round trips. Queries (read) and mutations (write) are ordinary HTTP requests, so they are stateless like REST. Subscriptions add real time. The client keeps a WebSocket open, and the server pushes whenever the subscribed event happens. In AWS AppSync, a subscription fires when a matching mutation runs.</p>
+
+<h2>Decision view</h2>
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart TD
+  q{{Who speaks first}}
+  q -->|Client_asks_then_waits| pull{{REST_or_GraphQL}}
+  pull -->|Fixed_resources_caching_WAF| rest[API_Gateway_REST_or_HTTP_API]
+  pull -->|Client_picks_fields_many_sources| gql[AppSync_GraphQL]
+  q -->|Event_source_calls_a_URL| hook{{Sending_or_receiving}}
+  hook -->|You_send_to_partner| apid[EventBridge_API_destinations]
+  hook -->|SaaS_calls_you| recv[API_Gateway_or_Lambda_URL]
+  q -->|Server_pushes_on_open_connection| push{{GraphQL}}
+  push -->|Yes| subs[AppSync_subscriptions]
+  push -->|No| ws[API_Gateway_WebSocket_API]
+  </div>
+  <p class="caption">Decision view for SAA. Product docs: <a href="https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-websocket-api-overview.html" target="_blank" rel="noopener">API Gateway WebSocket APIs</a>, <a href="https://docs.aws.amazon.com/appsync/latest/devguide/aws-appsync-real-time-data.html" target="_blank" rel="noopener">AppSync subscriptions</a>, and <a href="https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-api-destinations.html" target="_blank" rel="noopener">EventBridge API destinations</a>.</p>
+</div>
+
+<h2>How an API Gateway WebSocket API works</h2>
+<p>API Gateway keeps the open connection for you. Your Lambda functions stay stateless. Each client gets a <strong>connection ID</strong>, which you store in DynamoDB. Messages are routed by a field in the JSON body (the <strong>route selection expression</strong>, for example <code>$request.body.action</code>). To push to a client, the backend POSTs to the <code>@connections</code> callback URL with that client's connection ID.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+sequenceDiagram
+  participant Client
+  participant APIGW as API_Gateway_WebSocket
+  participant Fn as Lambda
+  participant DDB as DynamoDB
+  Client->>APIGW: wss_handshake
+  APIGW->>Fn: connect_route
+  Fn->>DDB: save_connectionId
+  Client->>APIGW: action_sendMessage
+  APIGW->>Fn: custom_route
+  Fn->>DDB: read_other_connectionIds
+  Fn->>APIGW: POST_at_connections_id
+  APIGW-->>Client: pushed_message
+  </div>
+  <p class="caption">Follows the routes and <code>@connections</code> model in <a href="https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-websocket-api-overview.html" target="_blank" rel="noopener">Overview of WebSocket APIs in API Gateway</a>. Connections close after 10 minutes idle or 2 hours total.</p>
+</div>
+
+<h2>How to choose</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>If the stem says</th><th>Pick</th><th>Not</th></tr></thead>
+  <tbody>
+    <tr><td>Serverless request/response API, caching, WAF, usage plans</td><td>API Gateway REST API + Lambda</td><td>WebSocket API for plain CRUD</td></tr>
+    <tr><td>Cheapest simple HTTP proxy, JWT auth</td><td>API Gateway HTTP API</td><td>REST API when no REST-only feature is needed</td></tr>
+    <tr><td>One function needs a public HTTPS URL, least setup</td><td>Lambda function URL</td><td>Full API Gateway stack</td></tr>
+    <tr><td>Chat, live dashboard, multiplayer: server pushes to connected clients</td><td>API Gateway WebSocket API (connection IDs in DynamoDB)</td><td>REST polling every second</td></tr>
+    <tr><td>GraphQL, client chooses fields, several data sources</td><td>AWS AppSync</td><td>Many REST endpoints stitched in the client</td></tr>
+    <tr><td>GraphQL + real-time updates / offline mobile sync</td><td>AppSync subscriptions</td><td>Hand-built WebSocket API + custom GraphQL server</td></tr>
+    <tr><td>Notify a partner's HTTPS endpoint on events, with auth + rate limit</td><td>EventBridge API destinations</td><td>Partner polls an SQS queue they cannot reach</td></tr>
+    <tr><td>SaaS provider sends you webhooks</td><td>API Gateway or Lambda function URL → Lambda (→ SQS to buffer)</td><td>EC2 web server just for one callback</td></tr>
+    <tr><td>Thousands of IoT devices, persistent two-way messaging</td><td>AWS IoT Core (MQTT)</td><td>WebSocket API built by hand</td></tr>
+    <tr><td>Users lose sessions when the web tier scales in</td><td>Sessions in ElastiCache or DynamoDB</td><td>Sticky sessions as the only fix</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Case study 1 — live chat</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A support chat must deliver each message to the other participant within a second. Traffic is spiky, and the team wants no servers to manage. Which design fits best?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> API Gateway REST API; each browser polls for new messages every second.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> API Gateway WebSocket API + Lambda; connection IDs in DynamoDB; the backend pushes through <code>@connections</code>.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> SNS SMS to each participant.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Kinesis Data Streams read directly by browsers.</div>
+  <p>Chat needs the server to push, so a stateful, two-way connection is the shape. Polling (A) wastes requests and adds delay. SMS (C) is not an in-app channel. Browsers do not read Kinesis shards (D). The WebSocket API holds the connections, so Lambda stays stateless.</p>
+</div>
+
+<h2>Case study 2 — webhook to a partner</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">When an order ships, a logistics partner must receive an HTTPS POST at their endpoint. The partner requires an API key, accepts at most 10 requests per second, and failed calls must be retried. Least custom code.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Put events on an SQS queue and ask the partner to poll it.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> AppSync subscription that the partner connects to.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> EventBridge rule → API destination with a connection (API key auth), invocation rate limit 10/s, retry policy and DLQ.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Cron Lambda that batches orders hourly and emails a CSV.</div>
+  <p>A webhook is stateless push to a URL the <em>receiver</em> hosts. API destinations do exactly that, with auth, rate limiting and retries built in. A and B make the partner pull or hold a connection, which they did not offer. D breaks the per-event requirement.</p>
+</div>
+
+<h2>Case study 3 — sessions lost on scale-in</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A web app on an Auto Scaling group behind an ALB stores user sessions in instance memory. When the group scales in, users are logged out. How do you fix this and keep scaling elastic?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Turn on sticky sessions and stop scaling in.</div>
+  <div class="opt win"><strong class="tag">B — correct</strong> Store sessions in ElastiCache (Redis) or DynamoDB so the web tier becomes stateless.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> Larger instances so fewer are needed.</div>
+  <div class="opt lose"><strong class="tag">D — wrong</strong> Save sessions on each instance's EBS volume.</div>
+  <p>Sessions kept in memory make each server stateful. Moving them to a shared store lets any instance serve any user. Sticky sessions (A) still lose the session when that instance dies. EBS (D) is attached to one instance, so it has the same problem.</p>
+</div>
+
+<h2>Tricky points</h2>
+<p><strong>Webhooks are push, but stateless.</strong> Each event is one HTTP call to a URL the receiver hosts. No connection stays open between events.</p>
+<p><strong>GraphQL is not automatically real-time.</strong> Queries and mutations are plain HTTP. Only subscriptions keep a WebSocket open.</p>
+<p><strong>WebSocket API ≠ stateful Lambda.</strong> API Gateway holds the connection. Your functions stay stateless and look up connection IDs in DynamoDB.</p>
+<p><strong>Connections expire.</strong> API Gateway closes WebSockets after 10 minutes idle or 2 hours total. Clients must reconnect, so a long job's result should not depend on one open socket.</p>
+<p><strong>29-second limit.</strong> REST/HTTP integrations time out at about 29 seconds by default. For long work, accept the request, process asynchronously, and notify by WebSocket, webhook, or polling.</p>
+<p><strong>Sticky sessions are a crutch.</strong> They keep a stateful tier working, but an external session store is the scalable answer.</p>
+
+<h2>Official AWS docs</h2>
+<ul class="docs-list">
+  <li><a href="https://docs.aws.amazon.com/apigateway/latest/developerguide/welcome.html" target="_blank" rel="noopener">What is Amazon API Gateway?</a></li>
+  <li><a href="https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-websocket-api-overview.html" target="_blank" rel="noopener">Overview of WebSocket APIs in API Gateway</a></li>
+  <li><a href="https://docs.aws.amazon.com/apigateway/latest/developerguide/limits.html" target="_blank" rel="noopener">API Gateway quotas</a></li>
+  <li><a href="https://docs.aws.amazon.com/appsync/latest/devguide/what-is-appsync.html" target="_blank" rel="noopener">What is AWS AppSync?</a></li>
+  <li><a href="https://docs.aws.amazon.com/appsync/latest/devguide/aws-appsync-real-time-data.html" target="_blank" rel="noopener">AppSync subscriptions for real-time data</a></li>
+  <li><a href="https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-api-destinations.html" target="_blank" rel="noopener">EventBridge API destinations</a></li>
+  <li><a href="https://docs.aws.amazon.com/lambda/latest/dg/urls-configuration.html" target="_blank" rel="noopener">Lambda function URLs</a></li>
+</ul>
+<h2>Related pages</h2>
+<div class="related">
+  <a href="../learn/dynamodb.html">DynamoDB and API Gateway</a>
+  <a href="../learn/integration-extras.html">AppSync, MSK, AppFlow</a>
+  <a href="../compare/messaging.html">Messaging picker</a>
+  <a href="../learn/elb-asg.html">Load balancers and sessions</a>
+  <a href="../learn/lambda.html">Lambda</a>
+</div>

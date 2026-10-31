@@ -279,3 +279,69 @@ Client → API Gateway → Lambda Authorizer → Validates token
 > - "Custom auth logic (3rd party tokens)" = Lambda Authorizer
 > - "Real-time two-way communication" = WebSocket API
 > - "Rate limit per customer" = Usage Plans + API Keys
+
+---
+
+## API Styles: Stateless vs Stateful (REST, Webhooks, GraphQL, WebSockets)
+
+### Core Concepts
+- **Stateless**: the server keeps **no memory of the client** between requests. Every request carries everything it needs (auth token, IDs, context). Any server can answer any request, so it scales easily behind a load balancer.
+- **Stateful**: the server keeps an **open connection or session** for the client and remembers who it is for as long as that lasts. This lets the server **push** data, but connections must be tracked and scaling is harder.
+- "Stateless" describes the **connection/session**, not the data. A stateless API still reads and writes a database.
+
+### Protocol Comparison
+
+| Style | State | Connection | Direction | Who hosts the endpoint |
+|-------|-------|------------|-----------|------------------------|
+| **REST API** | Stateless | Short-lived HTTP request/response | Client pulls | Server. Client calls it. |
+| **Webhooks** | Stateless | Short-lived HTTP POST | Server pushes an event | **The receiver hosts it.** The event source calls it. |
+| **GraphQL queries / mutations** | Stateless | Short-lived HTTP (usually POST to one `/graphql` endpoint) | Client pulls exactly the fields it asks for | Server, single endpoint |
+| **WebSockets** | **Stateful** | Persistent connection (HTTP upgrade → long-lived TCP) | **Bidirectional** | Server. Client opens and keeps the connection. |
+| **GraphQL subscriptions** | **Stateful** | Persistent WebSocket | Server pushes updates for the subscribed event | Server. Client subscribes. |
+
+### Where GraphQL Fits
+- GraphQL is a **query language for APIs**. The client asks one endpoint for exactly the fields it needs (no over-fetching, fewer round trips than REST).
+- **Queries** (read) and **mutations** (write) are plain HTTP, so they're **stateless** like REST.
+- **Subscriptions** (real-time updates) run over **WebSockets**, so they're **stateful**. In AWS AppSync, a subscription fires when a matching **mutation** happens.
+
+### Mapping to AWS
+
+| You need | AWS service |
+|----------|-------------|
+| REST / HTTP request-response API | **API Gateway REST API** (caching, WAF, usage plans) or **HTTP API** (cheaper). **Lambda function URL** for one function. **ALB** for EC2/containers. |
+| GraphQL queries and mutations | **AWS AppSync** (resolvers to DynamoDB, Lambda, Aurora, OpenSearch, HTTP) |
+| GraphQL real-time updates | **AppSync subscriptions** (AppSync manages the WebSockets) |
+| Two-way real-time (chat, live dashboards, games) | **API Gateway WebSocket API**, or **AppSync Events** (managed pub/sub channels) |
+| Receive webhooks (a SaaS provider calls you) | **API Gateway** or **Lambda function URL** → Lambda (often → SQS/EventBridge to buffer) |
+| Send webhooks to a third-party HTTPS endpoint | **EventBridge API destinations** (auth, rate limit, retries, DLQ) or **SNS HTTP/S subscription** |
+| IoT devices with persistent two-way connections | **AWS IoT Core** (MQTT) |
+
+### API Gateway WebSocket API: How It Works
+```
+Client ──(wss:// handshake)──► API Gateway WebSocket API
+                                 ├── $connect     → Lambda: save connectionId in DynamoDB
+                                 ├── sendMessage  → Lambda (custom route, picked by the
+                                 │                  route selection expression, e.g. $request.body.action)
+                                 ├── $default     → Lambda (no route matched)
+                                 └── $disconnect  → Lambda: delete connectionId
+
+Server push: backend POSTs to the @connections callback URL with a connectionId
+             → API Gateway delivers the message to that client
+```
+- **API Gateway holds the connection.** Lambda stays stateless. **Connection IDs live in DynamoDB.**
+- Connections close after **10 min idle** or **2 hours** total, so clients must reconnect.
+- **ALB** also supports WebSockets, for EC2/ECS servers that hold the connections themselves.
+
+### Keep the App Tier Stateless (classic SAA pattern)
+- Store user sessions **outside** the servers: **ElastiCache (Redis)** or **DynamoDB** (with TTL).
+- Then any instance can serve any request, and Auto Scaling can add or remove instances freely.
+- **Sticky sessions** (ALB) pin a user to one instance. They work, but losing that instance loses the session and load spreads unevenly. Prefer an external session store.
+
+> **Exam Tips**:
+> - "Real-time two-way communication" / "chat" / "server pushes to connected clients" = API Gateway **WebSocket API** (or AppSync)
+> - "GraphQL" / "fetch exactly the fields needed from several data sources" = **AppSync**
+> - "GraphQL + real-time updates / offline sync for mobile" = **AppSync subscriptions**
+> - "Notify a partner's HTTPS endpoint when an event happens" = **EventBridge API destinations**
+> - "Receive webhooks from a SaaS provider" = API Gateway or Lambda function URL → Lambda
+> - "Users lose sessions when instances scale in" = store sessions in **ElastiCache/DynamoDB** (stateless tier)
+> - "Request-response, no real-time" = REST/HTTP API (stateless)
