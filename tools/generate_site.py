@@ -451,6 +451,8 @@ SERVICES = [
     ("AWS Service Catalog", "Management and Governance", "name", "learn/governance.html", "Approved product portfolios for teams.", "portfolio"),
     ("AWS Well-Architected Tool", "Management and Governance", "name", "learn/well-architected.html", "Review workloads against the six pillars.", "lens"),
     ("Amazon Aurora Serverless", "Database", "must", "learn/databases.html", "Aurora that scales to zero and charges per ACU.", "aurora v2"),
+    ("Babelfish for Aurora PostgreSQL", "Database", "should", "learn/databases.html", "Run SQL Server T-SQL apps on Aurora PostgreSQL.", "sql server tsql t-sql tds"),
+    ("Amazon RDS Custom", "Database", "should", "learn/databases.html", "Managed Oracle/SQL Server with OS access.", "rds custom os access"),
 ]
 
 

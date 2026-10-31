@@ -974,5 +974,21 @@
     "href": "learn/databases.html",
     "blurb": "Aurora that scales to zero and charges per ACU.",
     "aliases": "aurora v2"
+  },
+  {
+    "name": "Babelfish for Aurora PostgreSQL",
+    "category": "Database",
+    "priority": "should",
+    "href": "learn/databases.html",
+    "blurb": "Run SQL Server T-SQL apps on Aurora PostgreSQL.",
+    "aliases": "sql server tsql t-sql tds"
+  },
+  {
+    "name": "Amazon RDS Custom",
+    "category": "Database",
+    "priority": "should",
+    "href": "learn/databases.html",
+    "blurb": "Managed Oracle/SQL Server with OS access.",
+    "aliases": "rds custom os access"
   }
 ]

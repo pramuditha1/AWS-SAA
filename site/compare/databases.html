@@ -100,6 +100,8 @@ flowchart TD
     <tr><td>DynamoDB with microsecond reads for hot keys</td><td>DAX</td><td>ElastiCache as a drop-in (different API)</td></tr>
     <tr><td>Offload reads from RDS without a new API</td><td>Read replicas, optionally ElastiCache in front</td><td>DynamoDB</td></tr>
     <tr><td>Lambda opens thousands of connections to RDS</td><td>Amazon RDS Proxy</td><td>Only raising max_connections</td></tr>
+    <tr><td>Leave SQL Server for Aurora PostgreSQL, app keeps T-SQL</td><td>Babelfish for Aurora PostgreSQL</td><td>Aurora custom endpoint; AWS Glue</td></tr>
+    <tr><td>Managed DB but vendor needs OS access (Oracle / SQL Server)</td><td>RDS Custom</td><td>Plain RDS (no OS access)</td></tr>
     <tr><td>Joins across petabytes, BI, columnar</td><td>Amazon Redshift</td><td>RDS as a warehouse</td></tr>
   </tbody>
 </table></div>

@@ -76,6 +76,7 @@ RPO/RTO:         Hours ───────────────────
 - **Source Endpoint**: Connection to source database
 - **Target Endpoint**: Connection to target database
 - **Replication Task**: Defines migration settings
+- **DMS Serverless**: no replication instance to size. Capacity scales automatically.
 
 ### Migration Types
 | Type | Description |
@@ -88,6 +89,13 @@ RPO/RTO:         Hours ───────────────────
 - Convert database schema from one engine to another
 - Required for **heterogeneous migrations** (e.g., Oracle → PostgreSQL)
 - NOT needed for homogeneous migrations (e.g., MySQL → MySQL)
+- **DMS Schema Conversion**: the same conversion engine, fully managed in the DMS console (no desktop install). Can use generative AI for objects the rules can't convert.
+
+### Babelfish for Aurora PostgreSQL
+- Lets Aurora PostgreSQL accept **SQL Server connections and T-SQL** (TDS protocol, port 1433)
+- SQL Server apps move to Aurora PostgreSQL with **minimal code changes**. They keep their T-SQL and drivers.
+- Use DMS for the data. Babelfish removes the need to rewrite the app's SQL.
+- Details: see CS14 → Babelfish
 
 ### Supported Sources & Targets
 - **Sources**: Oracle, SQL Server, MySQL, PostgreSQL, MongoDB, S3, and more
@@ -98,6 +106,7 @@ RPO/RTO:         Hours ───────────────────
 > - "Convert Oracle to Aurora" = SCT + DMS
 > - "Continuous replication" = DMS CDC
 > - "Same engine migration" = DMS (no SCT needed)
+> - "SQL Server → Aurora PostgreSQL, keep T-SQL / minimal app changes" = Babelfish (+ SCT/DMS to move schema and data)
 
 ---
 

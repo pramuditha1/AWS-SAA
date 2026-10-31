@@ -33,6 +33,7 @@
 
 <p><strong>Encryption at rest</strong> uses KMS. You cannot flip encryption on for an already-running unencrypted RDS instance. The supported path is snapshot → copy snapshot with encryption → restore → cut over.</p>
 <p><strong>Encryption in transit</strong> is the engine’s SSL/TLS (and parameters that reject plaintext).</p>
+<p><strong>Passwords:</strong> keep database credentials in <strong>Secrets Manager</strong>, which can rotate them automatically. For MySQL, MariaDB, and PostgreSQL you can skip passwords with <strong>IAM database authentication</strong>, where the app gets a short-lived token instead.</p>
 <p><strong>When not RDS:</strong> key-value at any scale → DynamoDB; graph → Neptune; this chapter assumes the stem already wants SQL or a cache in front of SQL.</p>
 
 <h2>Multi-AZ vs read replica vs Multi-Region (do not swap these)</h2>
@@ -86,9 +87,45 @@ flowchart LR
 </div>
 
 <p><strong>Cluster endpoint</strong> — always points at the current writer. <strong>Reader endpoint</strong> — load-balances across Aurora replicas. Apps must reconnect after failover (DNS changes).</p>
-<p><strong>Aurora Serverless v2</strong> — capacity in ACUs that scale with load; good for bursty or intermittent relational work. Steady 24/7 load often stays cheaper on provisioned instances.</p>
-<p><strong>Aurora Global Database</strong> — managed Multi-Region Aurora with storage-level replication (typical lag under one second). The low-RPO / minutes-RTO Multi-Region answer for Aurora — better than “copy snapshots every hour” when the stem asks for least ops and tight RPO.</p>
+<p><strong>Custom endpoint</strong> — a name you create for a <em>subset</em> of instances. For example, send analytics to two large replicas and keep app reads on the small ones. It only groups instances. It does not change the SQL the database understands, so it can never make Aurora "act like SQL Server." <strong>Instance endpoints</strong> point at one node and are for troubleshooting.</p>
+<p><strong>Aurora Serverless v2</strong> — capacity in ACUs that scale with load; good for bursty or intermittent relational work. One ACU is about 2 GiB of memory. On current versions the minimum can be <strong>0 ACU</strong>, so an idle cluster pauses and resumes on the next connection. Serverless v1 is retired. Steady 24/7 load often stays cheaper on provisioned instances.</p>
+<p><strong>Aurora Global Database</strong> — managed Multi-Region Aurora with storage-level replication (typical lag under one second), up to 10 secondary Regions. The low-RPO / minutes-RTO Multi-Region answer for Aurora — better than “copy snapshots every hour” when the stem asks for least ops and tight RPO. <strong>Write forwarding</strong> lets an app in a secondary Region send occasional writes to the primary.</p>
 <p><strong>Cloning</strong> — fast copy-on-write cluster for QA. <strong>Backtrack</strong> (MySQL-compatible) — rewind the writer in-place for a window; not a substitute for backups.</p>
+<p><strong>One writer per cluster.</strong> Aurora Multi-Master existed only on Aurora MySQL 5.6, which is end of life. If you need more write capacity, use a bigger writer, Aurora Limitless Database (sharded PostgreSQL), or DynamoDB.</p>
+<p><strong>Storage pricing:</strong> <strong>Aurora Standard</strong> charges per I/O request. <strong>Aurora I/O-Optimized</strong> has no I/O charges and higher instance and storage prices. It is cheaper once I/O is about 25% or more of the Aurora bill.</p>
+
+<h2>Moving a SQL Server app to Aurora — Babelfish, SCT, and DMS</h2>
+<p>Many companies want to leave Microsoft SQL Server licensing and move to Aurora PostgreSQL. The hard part is the app, not the data. The app speaks <strong>T-SQL</strong> (SQL Server's SQL dialect) through SQL Server drivers, and PostgreSQL does not understand it. A normal migration rewrites every query and stored procedure.</p>
+<p><strong>Babelfish for Aurora PostgreSQL</strong> removes most of that rewrite. You turn it on when you create the Aurora PostgreSQL cluster. The cluster then gets a second listener on <strong>port 1433</strong> that speaks SQL Server's wire protocol (TDS) and runs T-SQL. The app keeps its drivers and queries and mostly just changes its connection string. The normal PostgreSQL port 5432 still works, so new code can use PostgreSQL directly against the same data.</p>
+
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  src[SQL_Server_on_premises] -->|AWS_DMS_data| aurora[Aurora_PostgreSQL]
+  src -->|SCT_or_DMS_Schema_Conversion| aurora
+  app[Existing_app_T_SQL] -->|TDS_port_1433| bf[Babelfish_endpoint]
+  bf --> aurora
+  newapp[New_app_PostgreSQL] -->|port_5432| aurora
+  </div>
+  <p class="caption">Follows <a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/babelfish.html" target="_blank" rel="noopener">Using Babelfish for Aurora PostgreSQL</a> and <a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/babelfish-migration.html" target="_blank" rel="noopener">Migrating a SQL Server database to Babelfish</a>.</p>
+</div>
+
+<p>Each tool has one job. <strong>AWS DMS</strong> copies the <em>data</em>, with full load plus ongoing changes so the source stays online. <strong>AWS SCT</strong>, or its managed version <strong>DMS Schema Conversion</strong>, converts the <em>schema and code</em> when engines differ. <strong>Babelfish</strong> lets the <em>app keep talking T-SQL</em>. Before migrating, run the free <strong>Babelfish Compass</strong> tool to list any T-SQL features Babelfish does not support yet.</p>
+<p>Limits worth knowing: Babelfish is for <strong>Aurora PostgreSQL only</strong> (not Aurora MySQL, not RDS for PostgreSQL). It does not work with RDS Proxy, IAM database authentication, or zero-ETL integrations.</p>
+
+<h2>Running RDS day to day</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Need</th><th>Feature</th></tr></thead>
+  <tbody>
+    <tr><td>Engine upgrade with short downtime and a safe test first</td><td><strong>Blue/Green Deployment</strong>: a synced staging copy, switchover usually under a minute, endpoints unchanged</td></tr>
+    <tr><td>Disk keeps filling up</td><td><strong>Storage Auto Scaling</strong> up to a maximum you set</td></tr>
+    <tr><td>Dev database idle most days</td><td><strong>Stop</strong> it (up to 7 days, then RDS restarts it) or Aurora Serverless v2</td></tr>
+    <tr><td>Per-process CPU/memory on the DB host</td><td><strong>Enhanced Monitoring</strong> (CloudWatch alone shows host-level metrics)</td></tr>
+    <tr><td>Which queries are slow</td><td><strong>Performance Insights</strong> / CloudWatch Database Insights</td></tr>
+    <tr><td>Vendor app needs OS access or custom patches (Oracle/SQL Server)</td><td><strong>RDS Custom</strong> — managed, but you get the OS. Otherwise EC2.</td></tr>
+    <tr><td>More read replicas when load rises</td><td><strong>Aurora Auto Scaling</strong>. Plain RDS does not auto-scale replicas.</td></tr>
+  </tbody>
+</table></div>
 
 <h2>RDS Proxy — when connections are the outage</h2>
 <p>Each DB connection costs memory on the writer. Hundreds of Lambda environments that each open a connection can hit <code>max_connections</code> before they hit CPU. <strong>RDS Proxy</strong> sits between the app and RDS/Aurora, reuses fewer DB connections, can shorten failover pain for the client, and pairs with IAM auth / Secrets Manager so passwords are not in the function code.</p>
@@ -165,6 +202,12 @@ flowchart LR
     <tr><td>Encrypt existing unencrypted RDS</td><td>Snapshot → encrypted copy → restore</td><td>“Enable encryption” checkbox in place</td></tr>
     <tr><td>Bursty quiet relational workload</td><td>Aurora Serverless v2</td><td>Huge provisioned instance idle all night</td></tr>
     <tr><td>Must not lose orders</td><td>RDS/Aurora/DynamoDB as system of record</td><td>Memcached as database of record</td></tr>
+    <tr><td>SQL Server app → Aurora PostgreSQL, keep T-SQL, minimal code change</td><td>Babelfish (+ SCT/DMS for schema and data)</td><td>Custom endpoint; Glue; Global Database</td></tr>
+    <tr><td>Different engine, convert schema</td><td>SCT or DMS Schema Conversion, then DMS for data</td><td>DMS alone</td></tr>
+    <tr><td>DB needs OS access / custom agents (Oracle, SQL Server)</td><td>RDS Custom (or EC2)</td><td>Plain RDS (no OS access)</td></tr>
+    <tr><td>Major version upgrade, minimal downtime</td><td>Blue/Green Deployment</td><td>In-place upgrade during business hours</td></tr>
+    <tr><td>Rotate DB passwords automatically</td><td>Secrets Manager</td><td>Parameter Store; password in Lambda env vars</td></tr>
+    <tr><td>Aurora bill dominated by I/O charges</td><td>Aurora I/O-Optimized</td><td>Bigger instance</td></tr>
   </tbody>
 </table></div>
 
@@ -201,6 +244,18 @@ flowchart LR
   <p>Multi-AZ is same-Region. Hourly snapshots miss the RPO. Cache is not the system of record. Global Database matches the RPO/RTO and ops story.</p>
 </div>
 
+<h2>Case study 4 — SQL Server app to Aurora PostgreSQL (select two)</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A retail company's customer system runs on Microsoft SQL Server, and its apps depend on T-SQL queries. The company wants to move to Aurora PostgreSQL without major changes to application logic. Which two actions achieve this with minimal refactoring?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Aurora Global Database to replicate across Regions for compatibility.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Aurora PostgreSQL custom endpoint that emulates SQL Server behavior.</div>
+  <div class="opt win"><strong class="tag">C — correct</strong> AWS SCT with AWS DMS to migrate the schema and data.</div>
+  <div class="opt win"><strong class="tag">D — correct</strong> Babelfish for Aurora PostgreSQL to support T-SQL commands.</div>
+  <div class="opt lose"><strong class="tag">E — wrong</strong> AWS Glue to convert T-SQL queries to PostgreSQL SQL.</div>
+  <p>The two picks split the job. SCT + DMS gets the schema and data into Aurora. Babelfish lets the unchanged app keep sending T-SQL. Global Database is Multi-Region replication and has nothing to do with SQL dialects. A custom endpoint only groups instances. Glue is ETL for analytics data and never rewrites application queries.</p>
+</div>
+
 <h2>Tricky points (still explained simply)</h2>
 <p><strong>Multi-AZ standby is not a reader</strong> on classic RDS instance deployments. Do not load-balance writes or reports onto it.</p>
 <p><strong>Read replicas are asynchronous.</strong> Promotion is a deliberate DR/migration step; expect lag and a new writer story unless you re-point DNS carefully.</p>
@@ -209,6 +264,10 @@ flowchart LR
 <p><strong>PITR creates a new instance</strong> — it is recovery, not an in-place undo of one bad row on the live endpoint.</p>
 <p><strong>RDS Proxy ≠ ElastiCache.</strong> Connections vs cached data.</p>
 <p><strong>Redis ≠ Memcached.</strong> Structures, optional persistence, and HA vs simple volatile cache.</p>
+<p><strong>"Compatibility" means Babelfish, not endpoints.</strong> No endpoint type, replication feature, or Glue job makes PostgreSQL run T-SQL. Babelfish does, and only on Aurora PostgreSQL.</p>
+<p><strong>SCT converts, DMS copies.</strong> SCT (or DMS Schema Conversion) rewrites schema and code between engines. DMS moves the rows. Same-engine moves need DMS only.</p>
+<p><strong>"Multi-Master" in an old question</strong> refers to a retired Aurora MySQL 5.6 feature. Today each Aurora cluster has one writer.</p>
+<p><strong>Read replicas count:</strong> RDS allows up to 15 per primary on every engine now. Older notes say 5 for non-Aurora engines.</p>
 
 <div class="exam-skip"><strong class="label">Light touch on the exam</strong> Every Aurora Parallel Query knob, OEM option groups, exact failover second counts. Know Multi-AZ / replica / Global / Proxy / cache contrasts.</div>
 
@@ -221,6 +280,12 @@ flowchart LR
   <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.html" target="_blank" rel="noopener">Aurora DB clusters</a></li>
   <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html" target="_blank" rel="noopener">Aurora Global Database</a></li>
   <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.html" target="_blank" rel="noopener">Amazon RDS Proxy</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html" target="_blank" rel="noopener">Aurora endpoint connections</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2.how-it-works.html" target="_blank" rel="noopener">How Aurora Serverless v2 works</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/babelfish.html" target="_blank" rel="noopener">Babelfish for Aurora PostgreSQL</a></li>
+  <li><a href="https://docs.aws.amazon.com/dms/latest/userguide/CHAP_SchemaConversion.html" target="_blank" rel="noopener">DMS Schema Conversion</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/blue-green-deployments-overview.html" target="_blank" rel="noopener">RDS Blue/Green Deployments</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-custom.html" target="_blank" rel="noopener">Amazon RDS Custom</a></li>
   <li><a href="https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/WhatIs.html" target="_blank" rel="noopener">What is Amazon ElastiCache?</a></li>
   <li><a href="https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/Strategies.html" target="_blank" rel="noopener">Caching strategies</a></li>
 </ul>

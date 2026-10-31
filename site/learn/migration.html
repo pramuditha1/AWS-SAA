@@ -73,7 +73,7 @@
   </tbody>
 </table></div>
 
-<p><strong>DMS (Database Migration Service)</strong> — continuous replication with full load + CDC; source stays up. <strong>SCT</strong> converts schemas for heterogeneous moves (Oracle → PostgreSQL).</p>
+<p><strong>DMS (Database Migration Service)</strong> — continuous replication with full load + CDC; source stays up. <strong>SCT</strong> converts schemas for heterogeneous moves (Oracle → PostgreSQL). <strong>DMS Schema Conversion</strong> is the same conversion, managed inside the DMS console. <strong>Babelfish for Aurora PostgreSQL</strong> lets a SQL Server app keep its T-SQL after the move, so the app needs few code changes (see <a href="../learn/databases.html">RDS and Aurora</a>).</p>
 <p><strong>MGN (Application Migration Service)</strong> — block-level replication of servers for lift-and-shift (rehost).</p>
 <p><strong>DataSync</strong> — online file sync/migrate to S3/EFS/FSx. <strong>Snow</strong> — ship petabytes offline. <strong>Storage Gateway</strong> — ongoing hybrid access (not one-shot migrate).</p>
 
@@ -116,6 +116,7 @@ flowchart LR
     <tr><td>Scaled-down stack always serving</td><td>Warm standby</td><td>Backup only</td></tr>
     <tr><td>Near-zero RPO/RTO both Regions</td><td>Multi-site active/active</td><td>Pilot light</td></tr>
     <tr><td>DB migrate, minimal downtime</td><td>DMS (+ SCT if engines differ)</td><td>Manual dump only weekend</td></tr>
+    <tr><td>SQL Server → Aurora PostgreSQL, keep T-SQL app code</td><td>Babelfish + DMS (SCT for schema)</td><td>Rewrite every query; Glue</td></tr>
     <tr><td>Lift VMs as-is</td><td>MGN (rehost)</td><td>Rewrite first unless asked</td></tr>
     <tr><td>Online file sync to AWS</td><td>DataSync</td><td>Snow (unless offline/petabyte)</td></tr>
   </tbody>
