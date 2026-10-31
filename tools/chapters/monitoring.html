@@ -67,6 +67,30 @@ flowchart LR
 </table></div>
 <p>Use a multi-Region trail (or organization trail) to S3 for long-term, immutable-ish storage. Turn on log file integrity validation when the stem cares about tampering. Query with Athena on the S3 files, or CloudTrail Lake.</p>
 
+<h2>Near-real-time warnings on bad API calls (classic SAA pattern)</h2>
+<p>Weekly Athena reports on S3 CloudTrail files answer “what happened last week.” They do <strong>not</strong> warn you while an attack is still running. For <strong>near-real-time</strong> alerts on illegal or failed API calls, AWS’s simple documented path is:</p>
+<ol>
+  <li>Send the trail to a <strong>CloudWatch Logs</strong> group (in addition to S3 if you want archives).</li>
+  <li>Create a <strong>metric filter</strong> that matches the error fields you care about (for example <code>errorCode</code> values such as <code>AccessDenied</code>, <code>UnauthorizedOperation</code>).</li>
+  <li>Alarm when that metric’s <strong>rate / count</strong> spikes.</li>
+  <li>Alarm action → <strong>SNS</strong> (email, SMS, Chatbot, pager).</li>
+</ol>
+<div class="doc-figure">
+  <div class="mermaid">
+flowchart LR
+  api[Illegal_or_failed_API_call] --> ct[CloudTrail]
+  ct --> cwl[CloudWatch_Logs]
+  cwl --> mf[Metric_filter_on_errorCode]
+  mf --> metric[Custom_metric_count]
+  metric --> alarm[CloudWatch_alarm]
+  alarm --> sns[SNS_warning]
+  </div>
+  <p class="caption">Exam pattern: CloudTrail → CloudWatch Logs → metric filter → alarm → SNS. See <a href="https://docs.aws.amazon.com/awscloudtrail/latest/userguide/send-cloudtrail-events-to-cloudwatch-logs.html" target="_blank" rel="noopener">Sending CloudTrail events to CloudWatch Logs</a> and <a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/MonitoringLogData.html" target="_blank" rel="noopener">metric filters</a>.</p>
+</div>
+<p><strong>Why not Kinesis here?</strong> You <em>can</em> stream logs with a subscription filter to Kinesis, then write custom processing. The exam usually wants the <strong>smallest</strong> architecture that still meets “near real time.” Metric filter + alarm + SNS does that without inventing a stream pipeline. Also: <em>Kinesis stream-level metrics</em> (IncomingBytes, IteratorAge) measure the stream’s health — they do <strong>not</strong> count AccessDenied error codes inside CloudTrail JSON.</p>
+<p><strong>Why not Trusted Advisor Service Limits?</strong> That tracks quota usage (are you near the API rate limit?), not “someone made illegal/unauthorized calls.”</p>
+<p><strong>Why not Athena + QuickSight?</strong> Great for the weekly report that discovered the problem. Too slow and manual for ongoing near-real-time warnings.</p>
+
 <h2>Use case 1 — scale on CPU, alert on errors</h2>
 <p><strong>Need:</strong> ASG grows when busy; ops gets SMS when the app logs ERROR spikes.</p>
 <p><strong>Design:</strong> CloudWatch alarm on CPU → ASG policy. Agent or app logs → log group → metric filter on ERROR → alarm → SNS.</p>
@@ -79,12 +103,18 @@ flowchart LR
 <p><strong>Need:</strong> Scale when RAM is high. Default metrics are not enough.</p>
 <p><strong>Design:</strong> CloudWatch Agent custom memory metric → alarm → ASG. Do not pick “enable detailed monitoring” alone — that only shortens the interval for default metrics.</p>
 
+<h2>Use case 4 — warn on a burst of illegal API calls</h2>
+<p><strong>Need:</strong> Management wants near-real-time warnings if unauthorized AWS API queries spike again (the weekly log review already found a past burst).</p>
+<p><strong>Design:</strong> CloudTrail → CloudWatch Logs → metric filter on the error codes to track → alarm on rate → SNS to the team.</p>
+
 <h2>How to choose</h2>
 <div class="table-wrap"><table>
   <thead><tr><th>Stem language</th><th>Pick</th><th>Not</th></tr></thead>
   <tbody>
-    <tr><td>CPU / latency / error rate / scale out</td><td>CloudWatch metrics + alarms</td><td>CloudTrail</td></tr>
-    <tr><td>Who deleted / who called which API</td><td>CloudTrail</td><td>CloudWatch metrics</td></tr>
+    <tr><td>CPU / latency / error rate / scale out</td><td>CloudWatch metrics + alarms</td><td>CloudTrail alone</td></tr>
+    <tr><td>Who deleted / who called which API (investigate later)</td><td>CloudTrail (console / S3 / Athena)</td><td>CloudWatch CPU graphs</td></tr>
+    <tr><td>Near-real-time alert on failed / illegal API calls</td><td>CloudTrail → Logs → <strong>metric filter</strong> → alarm → SNS</td><td>Athena dashboard; Kinesis stream metrics; Trusted Advisor limits</td></tr>
+    <tr><td>Weekly / managerial API reports</td><td>CloudTrail → S3 → Athena (+ QuickSight)</td><td>Metric filter alone</td></tr>
     <tr><td>Memory or free disk on EC2</td><td>CloudWatch Agent / custom metric</td><td>Detailed monitoring alone</td></tr>
     <tr><td>Query application logs</td><td>Logs Insights</td><td>CloudTrail event history</td></tr>
     <tr><td>Real-time log ship to S3/OpenSearch</td><td>Subscription filter (+ Firehose)</td><td>CreateExportTask only</td></tr>
@@ -122,11 +152,24 @@ flowchart LR
   <div class="opt lose"><strong class="tag">D — wrong</strong> Enable only S3 data events and skip management events.</div>
 </div>
 
+<h2>Case study 4 — illegal API burst, near-real-time warning</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">While consolidating weekly logs, a team finds an unusually large number of illegal AWS API queries. No outage this time. Management wants an automated solution that triggers <strong>near-real-time warnings</strong> if it happens again.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> Trusted Advisor Service Limits → CloudWatch alarm. That tracks <em>quota</em> exhaustion, not unauthorized/illegal API calls.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> Athena on CloudTrail S3 + QuickSight dashboards. That is the weekly report style that already found the issue — not near-real-time alerts.</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> CloudTrail → Kinesis, then alarm on <em>Kinesis stream-level metrics</em> → Lambda. Stream metrics do not count AccessDenied inside event JSON. The pipeline is also heavier than needed.</div>
+  <div class="opt win"><strong class="tag">D — correct</strong> CloudWatch metric filter on CloudTrail logs (match the error codes to track) → alarm on that metric’s rate → SNS to the team.</div>
+  <p>Decode the stem: source of truth = CloudTrail; requirement = near real time + warning = alarm + SNS; “illegal API” = filter on error fields, not on quota or on stream throughput.</p>
+</div>
+
 <h2>Tricky points (still explained simply)</h2>
 <p><strong>Detailed monitoring ≠ memory.</strong> It changes default metric frequency, not which OS metrics exist.</p>
 <p><strong>CloudTrail is not a performance dashboard.</strong> High API volume Insights ≠ “CPU is hot.”</p>
-<p><strong>Export vs subscribe.</strong> Batch export to S3 can lag hours. Near real-time needs a subscription filter.</p>
+<p><strong>Metric filter vs subscription filter.</strong> Metric filter turns matching log lines into a number you can alarm on (perfect for “count of AccessDenied”). Subscription filter ships raw logs to Lambda/Kinesis/Firehose for custom processing — use when you need the full event stream, not just a count.</p>
+<p><strong>Export vs subscribe.</strong> Batch export to S3 can lag hours. Near real-time needs CloudWatch Logs delivery + filter/alarm (or a subscription filter).</p>
 <p><strong>EventBridge</strong> can react to CloudWatch alarm state changes and many AWS events — useful glue, not a replacement for trails or metrics.</p>
+<p><strong>GuardDuty</strong> is threat findings (compromised keys, reconnaissance). If the stem only asks to count CloudTrail error codes and SNS-warn, metric filter is enough; do not over-pick GuardDuty unless the stem smells like threat intel.</p>
 
 <div class="exam-skip"><strong class="label">Light touch on the exam</strong> Contributor Insights math, exact Logs Insights syntax, CloudTrail Lake pricing tiers.</div>
 
@@ -135,6 +178,8 @@ flowchart LR
   <li><a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/WhatIsCloudWatch.html" target="_blank" rel="noopener">What is Amazon CloudWatch?</a></li>
   <li><a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/WhatIsCloudWatchLogs.html" target="_blank" rel="noopener">What is Amazon CloudWatch Logs?</a></li>
   <li><a href="https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-user-guide.html" target="_blank" rel="noopener">What is AWS CloudTrail?</a></li>
+  <li><a href="https://docs.aws.amazon.com/awscloudtrail/latest/userguide/send-cloudtrail-events-to-cloudwatch-logs.html" target="_blank" rel="noopener">Sending CloudTrail events to CloudWatch Logs</a></li>
+  <li><a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/MonitoringLogData.html" target="_blank" rel="noopener">Creating metrics from log events using filters</a></li>
   <li><a href="https://docs.aws.amazon.com/xray/latest/devguide/aws-xray.html" target="_blank" rel="noopener">What is AWS X-Ray?</a></li>
 </ul>
 <h2>Related pages</h2>
