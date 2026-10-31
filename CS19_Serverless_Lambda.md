@@ -47,7 +47,7 @@ Event Source → Lambda Function → Response/Side Effects
 
 ### Event Source Mapping (Polling)
 - Lambda polls: SQS, Kinesis, DynamoDB Streams, Amazon MQ, Kafka
-- **SQS**: Batch size 1-10, lambda deletes from queue after success
+- **SQS**: Batch size up to 10,000 (Standard, needs batch window) or 10 (FIFO). Lambda deletes messages after success. Queue visibility timeout ≥ 6 × function timeout.
 - **Kinesis/DynamoDB**: Reads batches from shard, retries on failure (blocks shard)
 - On failure: Configure **DLQ** (SQS) or **Destination** (success/failure)
 

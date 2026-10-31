@@ -287,7 +287,7 @@
 | Lambda timeout | 15 minutes max |
 | Lambda memory | 128 MB - 10 GB |
 | Lambda deployment package | 50 MB (zip), 250 MB (unzipped) |
-| SQS message size | 256 KB (use Extended Client Library for larger) |
+| SQS message size | 1 MiB (was 256 KB, still the number in most exam questions). Extended Client Library for larger |
 | SQS retention | 1 min - 14 days (default 4 days) |
 | SQS visibility timeout | 0 sec - 12 hours (default 30 sec) |
 | SNS message size | 256 KB |

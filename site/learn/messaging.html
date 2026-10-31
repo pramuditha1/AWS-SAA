@@ -87,15 +87,16 @@ flowchart TD
 <h2>SQS — a work inbox</h2>
 <p>A producer sends a message to a queue URL. A consumer calls ReceiveMessage. SQS then <strong>hides</strong> the message for the <strong>visibility timeout</strong> (default 30 seconds, max 12 hours). If the consumer deletes it in time, work is done. If the consumer crashes, the message reappears for someone else. Queue depth is a classic Auto Scaling metric.</p>
 <p><strong>Standard queues</strong> — nearly unlimited throughput, <strong>at-least-once</strong> delivery, <strong>best-effort order</strong>. Duplicates can happen; make the worker idempotent (natural key, DynamoDB condition).</p>
-<p><strong>FIFO queues</strong> — order <strong>per message group ID</strong>, and <strong>exactly-once processing</strong> inside a deduplication window. Group <code>account-123</code> keeps that account’s messages ordered; other groups run in parallel. One group ID for the whole company invents a single-threaded bottleneck.</p>
-<p>Max body size is <strong>256 KB</strong>. Bigger payloads use the <strong>Extended Client</strong> (body in S3, pointer on the queue). A <strong>dead-letter queue (DLQ)</strong> gets messages after too many receives without a delete — alarm on DLQ depth. Retention is 1 minute to 14 days (default 4 days), not a long archive.</p>
+<p><strong>FIFO queues</strong> — order <strong>per message group ID</strong>, and <strong>exactly-once processing</strong> inside a deduplication window. Group <code>account-123</code> keeps that account’s messages ordered; other groups run in parallel. One group ID for the whole company invents a single-threaded bottleneck. <strong>Deduplication</strong> works over a 5-minute window. Either the producer sends a <code>MessageDeduplicationId</code>, or you turn on content-based deduplication, which hashes the message body.</p>
+<p><strong>FIFO throughput is counted in API calls, not messages.</strong> Without high-throughput mode, a FIFO queue allows <strong>300 calls per second</strong> for each action (send, receive, delete). One call can carry a <strong>batch of up to 10 messages</strong>, so the ceiling is 300 × 10 = 3,000 messages per second. To size it, divide the peak message rate by 300 and round up. 1,000 messages per second needs batches of at least 4 (300 × 4 = 1,200). High-throughput FIFO mode raises the limits a lot, but most exam questions still use 300 and 3,000. You cannot switch a Standard queue to FIFO in place. You create a new <code>.fifo</code> queue.</p>
+<p>Max body size is now <strong>1 MiB</strong>. It was 256 KB until 2025, and most exam questions still use 256 KB. Bigger payloads use the <strong>Extended Client</strong> (body in S3, pointer on the queue). A <strong>dead-letter queue (DLQ)</strong> gets messages after too many receives without a delete — alarm on DLQ depth. Retention is 1 minute to 14 days (default 4 days), not a long archive.</p>
 
 <div class="table-wrap"><table>
   <thead><tr><th></th><th>Standard SQS</th><th>FIFO SQS</th></tr></thead>
   <tbody>
     <tr><td>Order</td><td>Best effort</td><td>Strict per message group</td></tr>
     <tr><td>Delivery</td><td>At-least-once; duplicates possible</td><td>Exactly-once processing (dedup window)</td></tr>
-    <tr><td>Throughput</td><td>Effectively unlimited</td><td>Lower; scale with many group IDs</td></tr>
+    <tr><td>Throughput</td><td>Effectively unlimited</td><td>300 API calls/s per action; batches of 10 → 3,000 msg/s; high-throughput mode for more</td></tr>
     <tr><td>Typical stem</td><td>Buffer workers, scale on backlog</td><td>Payments / inventory “in order, no dupes”</td></tr>
   </tbody>
 </table></div>
@@ -111,6 +112,9 @@ flowchart LR
   </div>
   <p class="caption">Follows the receive / visibility / delete model in <a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html" target="_blank" rel="noopener">Visibility timeout</a> and <a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html" target="_blank" rel="noopener">Dead-letter queues</a>.</p>
 </div>
+
+<p><strong>Lambda reading from SQS.</strong> With an <strong>event source mapping</strong>, Lambda polls the queue for you, so you write no polling loop. It sends batches of up to 10,000 messages from a Standard queue, or 10 from a FIFO queue, and deletes them when the function succeeds. Set the queue's visibility timeout to at least <strong>6 × the function timeout</strong>. Otherwise messages reappear while still being processed. If one message fails, the whole batch returns to the queue, unless you turn on <strong>partial batch response</strong>. The DLQ belongs on the queue, not on the function.</p>
+<p><strong>Security.</strong> Messages are encrypted at rest by default with SQS-managed keys (SSE-SQS). Choose SSE-KMS when you need your own key and CloudTrail records of its use. A <strong>queue policy</strong> (a resource-based policy) lets another account, an SNS topic, or an S3 bucket send messages. An <strong>interface VPC endpoint</strong> lets private subnets reach SQS without a NAT gateway.</p>
 
 <h2>SNS — one publish, many subscribers</h2>
 <p>Publish to a <strong>topic</strong>. SNS pushes to each subscription: SQS, Lambda, HTTPS, email, SMS, mobile push, Firehose. That is <strong>fan-out</strong>: order-placed becomes “email customer,” “update search,” and “notify billing” without the order service knowing those three.</p>
@@ -182,7 +186,7 @@ flowchart LR
 
 <h2>Use case 2 — one event, three teams</h2>
 <p><strong>Need:</strong> Order placed notifies billing, fulfillment, and a lake dump. Billing/fulfillment need per-account order and no duplicates.</p>
-<p><strong>Design:</strong> SNS FIFO (or EventBridge) → two SQS FIFO queues (group = account ID). Lake path via Firehose/S3 (at-least-once OK). Extended Client if bodies exceed 256 KB.</p>
+<p><strong>Design:</strong> SNS FIFO (or EventBridge) → two SQS FIFO queues (group = account ID). Lake path via Firehose/S3 (at-least-once OK). Extended Client if bodies exceed the SQS size limit.</p>
 
 <h2>Use case 3 — telemetry with replay + lake</h2>
 <p><strong>Need:</strong> Fraud app re-reads 48 hours; dashboard must not steal fraud’s read throughput; durable copy in S3 and OpenSearch.</p>
@@ -208,7 +212,8 @@ flowchart LR
     <tr><td>Many consumers + replay</td><td>Kinesis Data Streams</td><td>SQS (no rewind of same message)</td></tr>
     <tr><td>Least ops into S3/Redshift/OpenSearch</td><td>Firehose</td><td>Homegrown Streams batcher</td></tr>
     <tr><td>Existing JMS / ActiveMQ / RabbitMQ</td><td>Amazon MQ</td><td>Forced rewrite to SQS this sprint</td></tr>
-    <tr><td>Payload &gt; 256 KB, still a queue</td><td>SQS Extended Client + S3</td><td>“Raise SQS to 10 MB”</td></tr>
+    <tr><td>In order at more than 300 msg/s</td><td>SQS FIFO + batching (peak ÷ 300, rounded up, max 10)</td><td>Plain FIFO without batching; Standard</td></tr>
+    <tr><td>Payload over the SQS limit (1 MiB; 256 KB in older questions)</td><td>SQS Extended Client + S3</td><td>“Raise SQS to 10 MB”</td></tr>
     <tr><td>SNS → Lambda works off-peak, notifications lost at peak</td><td>Raise Lambda account concurrency quota</td><td>“SNS hit a limit”; “add SNS/Lambda servers”</td></tr>
   </tbody>
 </table></div>
@@ -216,8 +221,8 @@ flowchart LR
 <h2>Case study 1 — fan-out, order, large payload</h2>
 <div class="case">
   <h3>Stem</h3>
-  <p class="stem">Order service must notify billing, fulfillment, and a data lake. Billing and fulfillment need per-account order and no duplicates. Some documents are ~1 MB. Lake can be at-least-once. No self-managed brokers.</p>
-  <div class="opt lose"><strong class="tag">A — wrong</strong> One Standard SQS; three teams compete; raise message size quota to 1 MB.</div>
+  <p class="stem">Order service must notify billing, fulfillment, and a data lake. Billing and fulfillment need per-account order and no duplicates. Some documents are ~5 MB. Lake can be at-least-once. No self-managed brokers.</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> One Standard SQS; three teams compete; raise message size quota to 5 MB.</div>
   <div class="opt lose"><strong class="tag">B — wrong</strong> Single-AZ Amazon MQ so JMS “guarantees order.”</div>
   <div class="opt win"><strong class="tag">C — correct</strong> Fan-out to two SQS FIFO queues (group = account ID) + Extended Client for size; lake via Firehose/S3.</div>
   <div class="opt lose"><strong class="tag">D — wrong</strong> One-shard Kinesis “for global order” with three Lambdas.</div>
@@ -257,11 +262,23 @@ flowchart LR
   <p>A and D fail because both services are serverless, so there are no servers to add. C is the trap. SNS is built to absorb large publish rates. If SNS were throttling, the publisher would get errors on <code>Publish</code>. The stem says messages are published but users never get them, so the problem is on the subscriber side. 50× the traffic means 50× the concurrent Lambda executions, and the default 1,000 per Region runs out. Throttled async events are retried, then dropped.</p>
 </div>
 
+<h2>Case study 5 — ordered messages at 1,000 per second</h2>
+<div class="case">
+  <h3>Stem</h3>
+  <p class="stem">A bank moves core apps to SQS. Peak load is about 1,000 messages per second, and messages must be processed in order. Which option works?</p>
+  <div class="opt lose"><strong class="tag">A — wrong</strong> SQS Standard queue.</div>
+  <div class="opt lose"><strong class="tag">B — wrong</strong> SQS FIFO queue (no batching).</div>
+  <div class="opt lose"><strong class="tag">C — wrong</strong> SQS FIFO queue in batches of 2 messages per operation.</div>
+  <div class="opt win"><strong class="tag">D — correct</strong> SQS FIFO queue in batches of 4 messages per operation.</div>
+  <p>"In order" rules out Standard, which only tries to keep order. FIFO without batching allows 300 calls per second, so 300 messages per second, which is too low. Batches of 2 give 600, still too low. Batches of 4 give 1,200, which covers the 1,000 peak. The trick is that the FIFO limit counts API calls, so the number of messages per call is what you change.</p>
+</div>
+
 <h2>Tricky points (still explained simply)</h2>
 <p><strong>Visibility timeout ≠ delay queue.</strong> Hide time must cover processing or another worker grabs the same message. Delay is “wait up to 15 minutes before first delivery.”</p>
 <p><strong>One queue is not fan-out.</strong> Competing consumers share work. Copies for every team need SNS, EventBridge, or a stream.</p>
 <p><strong>Standard SQS duplicates are normal.</strong> Fix with idempotency, not FIFO, unless the stem asked for order and exactly-once.</p>
-<p><strong>256 KB</strong> for SQS/SNS bodies on the exam’s memory — use S3 pointers or choose a stream if you needed a stream anyway.</p>
+<p><strong>FIFO limits count API calls.</strong> 300 calls per second per action. Batching (up to 10 messages per call) is how one queue goes beyond 300 messages per second. "Add more consumers" doesn't raise the limit.</p>
+<p><strong>Message size:</strong> exam questions say 256 KB for SQS/SNS bodies. AWS now allows 1 MiB on SQS, and up to 1 MiB on an SNS topic if you raise its setting. Either way, large payloads go in S3 with a pointer, or into a stream if you needed a stream anyway.</p>
 <p><strong>"SNS hit a limit" is usually the trap.</strong> When SNS feeds Lambda and messages vanish under load, blame Lambda concurrency (1,000/Region default). Serverless services never take "add servers" as an answer.</p>
 <p><strong>Firehose is near-real-time.</strong> Sub-second Lambda processing of every record → Streams.</p>
 <p><strong>MQ ≠ “SQS with JMS paint.”</strong> Different HA, billing, and protocols. First migration step can still be MQ.</p>
@@ -274,6 +291,9 @@ flowchart LR
   <li><a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-queues.html" target="_blank" rel="noopener">SQS FIFO queues</a></li>
   <li><a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html" target="_blank" rel="noopener">Visibility timeout</a></li>
   <li><a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-s3-messages.html" target="_blank" rel="noopener">Large messages with Extended Client</a></li>
+  <li><a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/quotas-messages.html" target="_blank" rel="noopener">SQS message quotas (size, batch, FIFO throughput)</a></li>
+  <li><a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/high-throughput-fifo.html" target="_blank" rel="noopener">High throughput for FIFO queues</a></li>
+  <li><a href="https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-configure.html" target="_blank" rel="noopener">Lambda with SQS (event source mapping)</a></li>
   <li><a href="https://docs.aws.amazon.com/sns/latest/dg/welcome.html" target="_blank" rel="noopener">Amazon SNS</a></li>
   <li><a href="https://docs.aws.amazon.com/sns/latest/dg/sns-message-delivery-retries.html" target="_blank" rel="noopener">SNS delivery retries</a></li>
   <li><a href="https://docs.aws.amazon.com/sns/latest/dg/sns-dead-letter-queues.html" target="_blank" rel="noopener">SNS dead-letter queues</a></li>
